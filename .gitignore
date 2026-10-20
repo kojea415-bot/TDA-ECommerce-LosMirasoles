@@ -23,7 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Credenciales
-.env
+# .env se versiona: solo tiene la URL y la clave pública.
+# El resto de variantes sigue afuera.
 .env.*
 !.env.example
