@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseConfigurado } from '../lib/supabase'
 
-// TODO (Kevin): cambiar por el nombre de una tabla real
-const TABLA_DE_PRUEBA = 'tabla_de_prueba'
+const TABLA_DE_PRUEBA = 'categorias'
 
-// Hace una consulta simple y muestra el estado de la conexión
 function ConexionSupabase() {
   const [estado, setEstado] = useState('Probando...')
 

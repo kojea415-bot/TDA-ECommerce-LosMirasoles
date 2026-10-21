@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+<rect x="0" y="0" width="1280" height="760" rx="0" fill="#ffffff" stroke="#c8c8c8" stroke-width="1"/>
+<rect x="0" y="0" width="1280" height="64" rx="0" fill="#ffffff" stroke="none" stroke-width="1"/>
+<text x="28" y="38" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="20" font-weight="700" text-anchor="start">Dietética Los Mirasoles</text>
+<rect x="1000" y="16" width="110" height="34" rx="4" fill="#e4e4e4" stroke="#9a9a9a" stroke-width="1"/>
+<text x="1055.0" y="38.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Cuenta</text>
+<rect x="1124" y="16" width="128" height="34" rx="4" fill="#d0d0d0" stroke="#9a9a9a" stroke-width="1"/>
+<text x="1188.0" y="38.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Carrito (3)</text>
+<line x1="0" y1="64" x2="1280" y2="64" stroke="#c8c8c8" stroke-width="1"/>
+<text x="28" y="86" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="12" font-weight="400" text-anchor="start">Ficha de producto</text>
+<text x="28" y="118" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="start">← Volver al catálogo</text>
+<rect x="28" y="146" width="520" height="480" rx="0" fill="#e9e9e9" stroke="#c8c8c8" stroke-width="1"/>
+<line x1="28" y1="146" x2="548" y2="626" stroke="#bdbdbd" stroke-width="1"/>
+<line x1="548" y1="146" x2="28" y2="626" stroke="#bdbdbd" stroke-width="1"/>
+<text x="288.0" y="390.0" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="middle">imagen</text>
+<text x="580" y="170" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="28" font-weight="700" text-anchor="start">Harina de arroz</text>
+<rect x="580" y="190" width="100" height="32" rx="16" fill="#dcdcdc" stroke="#9a9a9a" stroke-width="1"/>
+<text x="630.0" y="211" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Sin TACC</text>
+<rect x="692" y="190" width="90" height="32" rx="16" fill="#ffffff" stroke="#9a9a9a" stroke-width="1"/>
+<text x="737.0" y="211" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Vegano</text>
+<text x="580" y="268" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="26" font-weight="700" text-anchor="start">$ 4.500</text>
+<text x="720" y="268" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="start">unidad: 1 kg</text>
+<text x="580" y="312" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="start">Descripción</text>
+<rect x="580" y="324" width="620" height="14" rx="3" fill="#f3f3f3" stroke="#f3f3f3" stroke-width="1"/>
+<rect x="580" y="346" width="480" height="14" rx="3" fill="#f3f3f3" stroke="#f3f3f3" stroke-width="1"/>
+<text x="580" y="390" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="start">Información nutricional</text>
+<rect x="580" y="402" width="620" height="72" rx="4" fill="#f3f3f3" stroke="#c8c8c8" stroke-width="1"/>
+<text x="596" y="444" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="start">Tabla nutricional del producto</text>
+<text x="580" y="508" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="700" text-anchor="start">Disponible</text>
+<rect x="580" y="528" width="280" height="44" rx="4" fill="#d0d0d0" stroke="#9a9a9a" stroke-width="1"/>
+<text x="720.0" y="555.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Agregar al carrito</text>
+<text x="580" y="596" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="start">Sin stock: el botón no se muestra y el producto sigue visible.</text>
+</svg>

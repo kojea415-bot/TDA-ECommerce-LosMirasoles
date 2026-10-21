@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+<rect x="0" y="0" width="1280" height="760" rx="0" fill="#ffffff" stroke="#c8c8c8" stroke-width="1"/>
+<rect x="0" y="0" width="1280" height="64" rx="0" fill="#ffffff" stroke="none" stroke-width="1"/>
+<text x="28" y="38" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="20" font-weight="700" text-anchor="start">Dietética Los Mirasoles</text>
+<rect x="1000" y="16" width="110" height="34" rx="4" fill="#e4e4e4" stroke="#9a9a9a" stroke-width="1"/>
+<text x="1055.0" y="38.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Cuenta</text>
+<rect x="1124" y="16" width="128" height="34" rx="4" fill="#d0d0d0" stroke="#9a9a9a" stroke-width="1"/>
+<text x="1188.0" y="38.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Carrito (3)</text>
+<line x1="0" y1="64" x2="1280" y2="64" stroke="#c8c8c8" stroke-width="1"/>
+<text x="28" y="86" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="12" font-weight="400" text-anchor="start">Confirmación</text>
+<rect x="280" y="120" width="720" height="480" rx="8" fill="#ffffff" stroke="#c8c8c8" stroke-width="1"/>
+<text x="640.0" y="170" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="26" font-weight="700" text-anchor="middle">Pedido #1234 confirmado</text>
+<rect x="530" y="192" width="220" height="32" rx="16" fill="#f3f3f3" stroke="#c8c8c8" stroke-width="1"/>
+<text x="640.0" y="214" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">En preparación</text>
+<line x1="320" y1="248" x2="960" y2="248" stroke="#c8c8c8" stroke-width="1"/>
+<text x="328" y="286" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="start">Harina de arroz  × 1</text>
+<text x="952" y="286" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="end">$ 4.500</text>
+<text x="328" y="322" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="start">Quinoa  × 2</text>
+<text x="952" y="322" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="end">$ 12.400</text>
+<text x="328" y="358" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="start">Envío a domicilio</text>
+<text x="952" y="358" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="15" font-weight="400" text-anchor="end">$ 2.500</text>
+<line x1="320" y1="400" x2="960" y2="400" stroke="#c8c8c8" stroke-width="1"/>
+<text x="328" y="440" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="16" font-weight="700" text-anchor="start">Total</text>
+<text x="952" y="440" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="18" font-weight="700" text-anchor="end">$ 19.400</text>
+<text x="328" y="478" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="start">Retiro: se muestra la dirección del local.</text>
+<text x="328" y="500" fill="#6b6b6b" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="13" font-weight="400" text-anchor="start">Se envía el comprobante al correo del pedido.</text>
+<rect x="520.0" y="520" width="240" height="44" rx="4" fill="#d0d0d0" stroke="#9a9a9a" stroke-width="1"/>
+<text x="640.0" y="547.0" fill="#3a3a3a" font-family="Liberation Sans, DejaVu Sans, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Volver al catálogo</text>
+</svg>
