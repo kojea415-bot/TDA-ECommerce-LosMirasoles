@@ -27,3 +27,7 @@ dist-ssr
 # El resto de variantes sigue afuera.
 .env.*
 !.env.example
+
+# Cypress
+cypress/videos
+cypress/screenshots
