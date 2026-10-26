@@ -1,18 +1,20 @@
 import { Link } from 'react-router-dom'
+import { useCart } from '../context/CartContext'
 
 function Header() {
-    return(
-    
+  // Total de unidades del carrito (no de productos distintos)
+  const { items } = useCart()
+  const total = items.reduce((suma, i) => suma + i.cantidad, 0)
+
+  return (
     <header className="header">
       <Link to="/" className="header-marca">Dietética Los Mirasoles</Link>
       <nav className="header-nav">
         <Link to="/ingreso">Cuenta</Link>
-        {/* El número es fijo por ahora: pasa a ser el real cuando exista el carrito */}
-        <Link to="/carrito">Carrito (0)</Link>
+        <Link to="/carrito">Carrito ({total})</Link>
       </nav>
     </header>
-    )
-   
+  )
 }
 
 export default Header
