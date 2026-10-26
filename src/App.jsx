@@ -6,11 +6,13 @@ import Ficha from './pages/Ficha'
 import Ingreso from './pages/Ingreso'
 import Pago from './pages/Pago'
 
+import Header from './components/Header'
+
 // Qué pantalla se muestra en cada dirección
 function App() {
   return (
     <div>
-      <h1>Taller de Aplicaciones</h1>
+      <Header />
       <Routes>
         <Route path="/" element={<Catalogo />} />
         <Route path="/producto/:id" element={<Ficha />} />
