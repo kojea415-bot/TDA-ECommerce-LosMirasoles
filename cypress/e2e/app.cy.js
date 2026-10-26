@@ -2,6 +2,6 @@
 describe('App', () => {
   it('muestra el título de la tienda', () => {
     cy.visit('/')
-    cy.contains('Taller de Aplicaciones')
+    cy.contains('Dietética Los Mirasoles')
   })
 })
