@@ -23,8 +23,13 @@ export function AuthProvider({ children }) {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  // Cierra la sesión en Supabase; el "timbre" de arriba pone usuario en null
+  async function cerrarSesion() {
+    await supabase.auth.signOut()
+  }
+
   return (
-    <AuthContext.Provider value={{ usuario, cargando }}>
+    <AuthContext.Provider value={{ usuario, cargando, cerrarSesion }}>
       {children}
     </AuthContext.Provider>
   )
