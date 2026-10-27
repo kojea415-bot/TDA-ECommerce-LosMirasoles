@@ -3,7 +3,7 @@ import { useCart } from '../context/CartContext'
 
 // Pantalla del carrito: lista de productos y botón para quitar cada uno
 function Carrito() {
-  const { items, quitarProducto, cambiarCantidad } = useCart()
+  const { items, quitarProducto, cambiarCantidad, vaciarCarrito } = useCart()
 
   if (items.length === 0) {
     return (
@@ -39,6 +39,10 @@ function Carrito() {
           </li>
         ))}
       </ul>
+
+      <button type="button" onClick={vaciarCarrito}>
+        Vaciar carrito
+      </button>
     </main>
   )
 }
