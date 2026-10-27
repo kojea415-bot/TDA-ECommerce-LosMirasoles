@@ -1,15 +1,31 @@
-// Pantalla de ingreso: formulario de correo y contraseña (la lógica se agrega después)
+import { useState } from 'react'
+
 function Ingreso() {
+  const [correo, setCorreo] = useState('')
+  const [contrasenia, setContrasenia] = useState('')
+
   return (
     <main className="ingreso">
       <h2>Ingresar o crear cuenta</h2>
 
       <form className="ingreso-form">
         <label htmlFor="correo">Correo</label>
-        <input id="correo" type="email" required />
+        <input
+          id="correo"
+          type="email"
+          value={correo}
+          onChange={(e) => setCorreo(e.target.value)}
+          required
+        />
 
         <label htmlFor="contrasenia">Contraseña</label>
-        <input id="contrasenia" type="password" required />
+        <input
+          id="contrasenia"
+          type="password"
+          value={contrasenia}
+          onChange={(e) => setContrasenia(e.target.value)}
+          required
+        />
 
         <button type="submit">Entrar</button>
       </form>
