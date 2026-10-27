@@ -31,8 +31,12 @@ export function CartProvider({ children }){
         )
     }
 
+    function vaciarCarrito(){
+        setItems([])
+    }
+
     return (
-    <CartContext.Provider value={{ items, agregarProducto, quitarProducto, cambiarCantidad }}>
+    <CartContext.Provider value={{ items, agregarProducto, quitarProducto, cambiarCantidad, vaciarCarrito }}>
       {children}
     </CartContext.Provider>
   )
