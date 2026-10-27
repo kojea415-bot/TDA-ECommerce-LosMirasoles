@@ -5,7 +5,8 @@ function Ingreso() {
   const [correo, setCorreo] = useState('')
   const [contrasenia, setContrasenia] = useState('')
   const [mensajeError, setMensajeError] = useState('')
-
+  const [creandoCuenta, setCreandoCuenta] = useState(false)
+  
   // Al enviar el formulario: verifica correo y contraseña en Supabase
   async function entrar(e) {
     e.preventDefault()
@@ -45,10 +46,12 @@ function Ingreso() {
 
         {mensajeError && <p role="alert">{mensajeError}</p>}
 
-        <button type="submit">Entrar</button>
+        <button type="submit">{creandoCuenta ? 'Crear cuenta' : 'Entrar'}</button>
       </form>
 
-      <button type="button">¿No tenés cuenta? Creá una</button>
+      <button type="button" onClick={() => setCreandoCuenta(!creandoCuenta)}>
+        {creandoCuenta ? '¿Ya tenés cuenta? Entrá' : '¿No tenés cuenta? Creá una'}
+      </button>
     </main>
   )
 }
