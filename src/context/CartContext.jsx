@@ -5,7 +5,7 @@ const CartContext = createContext(null)
 export function CartProvider({ children }){
     const [items, setItems] = useState([])
 
-    function agregar(producto){
+    function agregarProducto(producto){
         const existe = items.find((i) => i.id === producto.id) 
         if (existe){
             setItems(items.map((i) => (i.id === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i)))
@@ -14,7 +14,7 @@ export function CartProvider({ children }){
         }
     }
      return (
-    <CartContext.Provider value={{ items, agregar }}>
+    <CartContext.Provider value={{ items, agregarProducto }}>
       {children}
     </CartContext.Provider>
   )
