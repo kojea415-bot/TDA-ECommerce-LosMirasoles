@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 function Ingreso() {
+  const navegar = useNavigate()
   const [correo, setCorreo] = useState('')
   const [contrasenia, setContrasenia] = useState('')
   const [mensajeError, setMensajeError] = useState('')
@@ -15,9 +17,11 @@ function Ingreso() {
     if (creandoCuenta) {
       const { error } = await supabase.auth.signUp(datos)
       setMensajeError(error ? 'No se pudo crear la cuenta' : '')
+      if (!error) navegar('/')
     } else {
       const { error } = await supabase.auth.signInWithPassword(datos)
       setMensajeError(error ? 'Correo o contraseña incorrectos' : '')
+      if (!error) navegar('/')
     }
   }
 
