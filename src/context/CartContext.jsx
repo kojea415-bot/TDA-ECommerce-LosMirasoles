@@ -3,11 +3,8 @@ import { createContext, useContext, useState} from 'react'
 const CartContext = createContext(null)
 
 export function CartProvider({ children }){
-    // TEMPORAL: productos de prueba para ver el carrito. Volver a useState([])
-    const [items, setItems] = useState([
-        { id: 1, nombre: 'Quinoa', precio: 2500, cantidad: 2 },
-        { id: 2, nombre: 'Miel orgánica', precio: 4200, cantidad: 1 },
-    ])
+    
+    const [items, setItems] = useState([])
 
     function agregarProducto(producto){
         const existe = items.find((i) => i.id === producto.id) 
@@ -35,8 +32,11 @@ export function CartProvider({ children }){
         setItems([])
     }
 
+    // Suma de precio por cantidad de todos los productos
+    const subtotal = items.reduce((suma, i) => suma + i.precio * i.cantidad, 0)
+
     return (
-    <CartContext.Provider value={{ items, agregarProducto, quitarProducto, cambiarCantidad, vaciarCarrito }}>
+    <CartContext.Provider value={{ items, subtotal, agregarProducto, quitarProducto, cambiarCantidad, vaciarCarrito }}>
       {children}
     </CartContext.Provider>
   )
