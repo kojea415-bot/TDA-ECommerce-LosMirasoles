@@ -6,18 +6,18 @@ function Ingreso() {
   const [contrasenia, setContrasenia] = useState('')
   const [mensajeError, setMensajeError] = useState('')
   const [creandoCuenta, setCreandoCuenta] = useState(false)
-  
-  // Al enviar el formulario: verifica correo y contraseña en Supabase
-  async function entrar(e) {
+
+  // Al enviar el formulario: crea la cuenta o verifica los datos, según el modo
+  async function enviar(e) {
     e.preventDefault()
-    const { error } = await supabase.auth.signInWithPassword({
-      email: correo,
-      password: contrasenia,
-    })
-    if (error) {
-      setMensajeError('Correo o contraseña incorrectos')
+    const datos = { email: correo, password: contrasenia }
+
+    if (creandoCuenta) {
+      const { error } = await supabase.auth.signUp(datos)
+      setMensajeError(error ? 'No se pudo crear la cuenta' : '')
     } else {
-      setMensajeError('')
+      const { error } = await supabase.auth.signInWithPassword(datos)
+      setMensajeError(error ? 'Correo o contraseña incorrectos' : '')
     }
   }
 
@@ -25,7 +25,7 @@ function Ingreso() {
     <main className="ingreso">
       <h2>Ingresar o crear cuenta</h2>
 
-      <form className="ingreso-form" onSubmit={entrar}>
+      <form className="ingreso-form" onSubmit={enviar}>
         <label htmlFor="correo">Correo</label>
         <input
           id="correo"
