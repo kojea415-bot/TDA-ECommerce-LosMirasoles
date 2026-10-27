@@ -13,8 +13,13 @@ export function CartProvider({ children }){
             setItems([...items, { ...producto, cantidad: 1 }])
         }
     }
-     return (
-    <CartContext.Provider value={{ items, agregarProducto }}>
+
+    function quitarProducto(producto){
+        setItems(items.filter((i) => i.id !== producto.id))
+    }
+
+    return (
+    <CartContext.Provider value={{ items, agregarProducto, quitarProducto }}>
       {children}
     </CartContext.Provider>
   )
