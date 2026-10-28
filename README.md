@@ -45,9 +45,25 @@ Proyecto `Los Mirasoles (TDA)`. Las columnas están en el [diseño](<docs/U3 - T
 
 El navegador lee el catálogo. No inserta pedidos. La confirmación de correo de Auth está apagada, así que el registro deja la sesión abierta. El comprobante no sale por Auth. Faltan los secretos `GMAIL_USER` y `GMAIL_APP_PASSWORD` de la función: sin ellos el pedido se graba y `mail_ok` queda en falso.
 
+## Tablero
+
+[Tablero de TDA-LosMirasoles](https://alumnos-team-dx2olafw.atlassian.net/jira/software/projects/TSK/boards/2), sprint activo.
+
+En el backlog quedó el checkout:
+
+| Ticket | Qué es |
+| --- | --- |
+| TSK-10 | HU-06 Revalidar el stock al confirmar |
+| TSK-11 | HU-07 Elegir retiro o envío |
+| TSK-12 | HU-08 Completar el checkout con cobro simulado |
+| TSK-13 | HU-13 Enviar el comprobante por SMTP |
+| TSK-18 | Cargar los secretos de Gmail en `confirmar-pedido` |
+
+La prioridad media y baja del análisis no tiene ticket. Si el corte se amplía, el orden es compra como invitado, carrito que sobrevive al cierre, venta por gramaje y zonas editables.
+
 ## Qué falta en la app
 
-Catálogo, ficha, carrito, checkout, cuenta y el panel. El contrato de la compra está en el diseño.
+Las pantallas del sprint activo y, después, el checkout del backlog. El contrato de la compra está en el diseño. La función ya responde. Faltan los secretos `GMAIL_USER` y `GMAIL_APP_PASSWORD`.
 
 ## Documentación
 
