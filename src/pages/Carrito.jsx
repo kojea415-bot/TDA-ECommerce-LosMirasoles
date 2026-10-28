@@ -28,7 +28,11 @@ function Carrito() {
                 −
               </button>{' '}
               {item.cantidad}{' '}
-              <button type="button" onClick={() => cambiarCantidad(item, 1)}>
+              <button
+                type="button"
+                onClick={() => cambiarCantidad(item, 1)}
+                disabled={item.cantidad >= item.stock}
+              >
                 +
               </button>
             </span>

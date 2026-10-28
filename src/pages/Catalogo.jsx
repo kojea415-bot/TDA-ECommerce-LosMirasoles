@@ -13,7 +13,7 @@ function normalizar(texto) {
 
 // Pantalla de inicio: trae los productos publicados de Supabase
 function Catalogo() {
-  const { agregarProducto } = useCart()
+  const { items, agregarProducto } = useCart()
   const [productos, setProductos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mensajeError, setMensajeError] = useState('')
@@ -51,6 +51,12 @@ function Catalogo() {
 
   if (mensajeError) {
     return <p role="alert">{mensajeError}</p>
+  }
+
+  // Cuántas unidades de ese producto ya hay en el carrito
+  function cantidadEnCarrito(id) {
+    const item = items.find((i) => i.id === id)
+    return item ? item.cantidad : 0
   }
 
   // La lista original no se toca: se arma una copia con los que cumplen
@@ -105,7 +111,11 @@ function Catalogo() {
             <p>${producto.precio}</p>
 
             {producto.stock > 0 ? (
-              <button type="button" onClick={() => agregarProducto(producto)}>
+              <button
+                type="button"
+                onClick={() => agregarProducto(producto)}
+                disabled={cantidadEnCarrito(producto.id) >= producto.stock}
+              >
                 Agregar
               </button>
             ) : (
