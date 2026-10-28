@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 function Ingreso() {
   const navegar = useNavigate()
+  const [nombre, setNombre] = useState('')
   const [correo, setCorreo] = useState('')
   const [contrasenia, setContrasenia] = useState('')
   const [mensajeError, setMensajeError] = useState('')
@@ -15,9 +16,27 @@ function Ingreso() {
     const datos = { email: correo, password: contrasenia }
 
     if (creandoCuenta) {
-      const { error } = await supabase.auth.signUp(datos)
-      setMensajeError(error ? 'No se pudo crear la cuenta' : '')
-      if (!error) navegar('/')
+      const { data, error } = await supabase.auth.signUp({
+        ...datos,
+        options: { data: { nombre: nombre.trim() } },
+      })
+      // Supabase hides duplicates: no error, and the user comes back with no identities.
+      const correoRepetido = /already registered/i.test(error?.message ?? '')
+        || error?.code === 'user_already_exists'
+      const altaDeshabilitada = error?.code === 'email_provider_disabled'
+        || /signups are disabled/i.test(error?.message ?? '')
+      const yaExiste = correoRepetido || (!error && data.user && (data.user.identities?.length ?? 0) === 0)
+      if (error || yaExiste) {
+        setMensajeError(
+          yaExiste
+            ? 'Ese correo ya está registrado.'
+            : altaDeshabilitada
+              ? 'El alta por correo está deshabilitada en el proyecto.'
+              : 'No se pudo crear la cuenta'
+        )
+        return
+      }
+      navegar('/')
     } else {
       const { error } = await supabase.auth.signInWithPassword(datos)
       setMensajeError(error ? 'Correo o contraseña incorrectos' : '')
@@ -30,6 +49,19 @@ function Ingreso() {
       <h2>Ingresar o crear cuenta</h2>
 
       <form className="ingreso-form" onSubmit={enviar}>
+        {creandoCuenta && (
+          <>
+            <label htmlFor="nombre">Nombre</label>
+            <input
+              id="nombre"
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              required
+            />
+          </>
+        )}
+
         <label htmlFor="correo">Correo</label>
         <input
           id="correo"
