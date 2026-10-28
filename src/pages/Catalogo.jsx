@@ -2,12 +2,22 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useCart } from '../context/CartContext'
 
+// Pasa a minúsculas y saca espacios y tildes, para que "organica" encuentre "Orgánica"
+function normalizar(texto) {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 // Pantalla de inicio: trae los productos publicados de Supabase
 function Catalogo() {
   const { agregarProducto } = useCart()
   const [productos, setProductos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mensajeError, setMensajeError] = useState('')
+  const [busqueda, setBusqueda] = useState('')
 
   // Una sola vez al abrir la pantalla: pide los productos
   useEffect(() => {
@@ -36,12 +46,29 @@ function Catalogo() {
     return <p role="alert">{mensajeError}</p>
   }
 
+  // La lista original no se toca: se arma una copia con los que coinciden
+  const productosFiltrados = productos.filter((p) =>
+    normalizar(p.nombre).includes(normalizar(busqueda))
+  )
+
   return (
     <main className="catalogo">
       <h2>Catálogo</h2>
 
+      <input
+        type="search"
+        placeholder="Buscar producto"
+        aria-label="Buscar producto"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+      />
+
+      {productosFiltrados.length === 0 && (
+        <p>No hay productos que coincidan con tu búsqueda.</p>
+      )}
+
       <ul className="catalogo-lista">
-        {productos.map((producto) => (
+        {productosFiltrados.map((producto) => (
           <li key={producto.id} className="catalogo-tarjeta">
             <h3>{producto.nombre}</h3>
             <p>{producto.unidad_venta}</p>
