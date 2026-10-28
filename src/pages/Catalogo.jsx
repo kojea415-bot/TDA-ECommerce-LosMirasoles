@@ -18,24 +18,31 @@ function Catalogo() {
   const [cargando, setCargando] = useState(true)
   const [mensajeError, setMensajeError] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const [categorias, setCategorias] = useState([])
+  const [categoriaElegida, setCategoriaElegida] = useState('')
 
-  // Una sola vez al abrir la pantalla: pide los productos
+  // Una sola vez al abrir la pantalla: pide los productos y las categorías
   useEffect(() => {
-    async function traerProductos() {
-      const { data, error } = await supabase
+    async function traerDatos() {
+      const resProductos = await supabase
         .from('productos')
         .select('*')
         .eq('publicado', true)
+      const resCategorias = await supabase
+        .from('categorias')
+        .select('*')
+        .order('nombre')
 
-      if (error) {
+      if (resProductos.error || resCategorias.error) {
         setMensajeError('No se pudieron cargar los productos')
       } else {
-        setProductos(data)
+        setProductos(resProductos.data)
+        setCategorias(resCategorias.data)
       }
       setCargando(false)
     }
 
-    traerProductos()
+    traerDatos()
   }, [])
 
   if (cargando) {
@@ -46,9 +53,12 @@ function Catalogo() {
     return <p role="alert">{mensajeError}</p>
   }
 
-  // La lista original no se toca: se arma una copia con los que coinciden
-  const productosFiltrados = productos.filter((p) =>
-    normalizar(p.nombre).includes(normalizar(busqueda))
+  // La lista original no se toca: se arma una copia con los que cumplen
+  // el buscador Y la categoría (sin categoría elegida, pasan todos)
+  const productosFiltrados = productos.filter(
+    (p) =>
+      normalizar(p.nombre).includes(normalizar(busqueda)) &&
+      (categoriaElegida === '' || p.categoria_id === categoriaElegida)
   )
 
   return (
@@ -62,6 +72,26 @@ function Catalogo() {
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
       />
+
+      <div className="catalogo-categorias">
+        <button
+          type="button"
+          aria-pressed={categoriaElegida === ''}
+          onClick={() => setCategoriaElegida('')}
+        >
+          Todas
+        </button>
+        {categorias.map((categoria) => (
+          <button
+            key={categoria.id}
+            type="button"
+            aria-pressed={categoriaElegida === categoria.id}
+            onClick={() => setCategoriaElegida(categoria.id)}
+          >
+            {categoria.nombre}
+          </button>
+        ))}
+      </div>
 
       {productosFiltrados.length === 0 && (
         <p>No hay productos que coincidan con tu búsqueda.</p>
