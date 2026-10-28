@@ -5,18 +5,36 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null)
+  const [perfil, setPerfil] = useState(null)
   const [cargando, setCargando] = useState(true)
+
+  async function leerPerfil(user) {
+    if (!user) {
+      setPerfil(null)
+      return
+    }
+    const { data } = await supabase
+      .from('perfiles')
+      .select('nombre, rol')
+      .eq('id', user.id)
+      .maybeSingle()
+    setPerfil(data)
+  }
 
   useEffect(() => {
     // 1. preguntar si hay sesión abierta
     supabase.auth.getSession().then(({ data }) => {
-      setUsuario(data.session?.user ?? null)
+      const user = data.session?.user ?? null
+      setUsuario(user)
       setCargando(false)
+      leerPerfil(user)
     })
 
     // 2. escuchar cuando alguien entra o sale
     const { data } = supabase.auth.onAuthStateChange((_evento, sesion) => {
-      setUsuario(sesion?.user ?? null)
+      const user = sesion?.user ?? null
+      setUsuario(user)
+      leerPerfil(user)
     })
 
     // 3. al desmontar, dejar de escuchar
@@ -29,7 +47,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, cargando, cerrarSesion }}>
+    <AuthContext.Provider value={{ usuario, perfil, cargando, cerrarSesion }}>
       {children}
     </AuthContext.Provider>
   )

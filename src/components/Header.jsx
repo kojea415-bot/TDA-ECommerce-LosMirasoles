@@ -8,18 +8,21 @@ function Header() {
   const total = items.reduce((suma, i) => suma + i.cantidad, 0)
 
   // Sesión: si hay usuario se muestra "Salir", si no "Cuenta"
-  const { usuario, cerrarSesion } = useAuth()
+  const { usuario, perfil, cerrarSesion } = useAuth()
 
   return (
     <header className="header">
       <Link to="/" className="header-marca">Dietética Los Mirasoles</Link>
       <nav className="header-nav">
+        {perfil?.rol === 'administrador' && (
+          <Link to="/admin/pedidos">Panel</Link>
+        )}
         {usuario ? (
-          <button onClick={cerrarSesion}>Salir</button>
+          <button type="button" onClick={cerrarSesion}>Salir</button>
         ) : (
           <Link to="/ingreso">Cuenta</Link>
         )}
-        <Link to="/carrito">Carrito ({total})</Link>
+        <Link to="/carrito" className="header-carrito">Carrito ({total})</Link>
       </nav>
     </header>
   )
