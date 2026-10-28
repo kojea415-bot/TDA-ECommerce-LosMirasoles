@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { pesos } from '../lib/presentacion'
 import { useAuth } from '../context/AuthContext'
@@ -30,10 +30,38 @@ function Resumen({ items, envio, total }) {
   )
 }
 
-// Layout of the two checkout steps. Confirming the order is still the backlog story.
+// Same lookup the checkout function uses. An unknown postal code stays at zero.
+async function costoDeZona(codigo) {
+  const { data, error } = await supabase
+    .from('zonas_cobertura')
+    .select('costo_envio')
+    .eq('codigo_postal', codigo.trim())
+    .maybeSingle()
+  if (error) return null
+  return data ? Number(data.costo_envio) : 0
+}
+
+// Reads the function error body. Stock conflicts name the product; other failures use the server text.
+async function mensajeDeConfirmacion(error) {
+  const respuesta = error?.context
+  if (!respuesta || typeof respuesta.json !== 'function') {
+    return 'No se pudo confirmar el pedido.'
+  }
+  try {
+    const cuerpo = await respuesta.json()
+    if (cuerpo?.producto) return `No alcanza el stock de ${cuerpo.producto}.`
+    if (typeof cuerpo?.error === 'string' && cuerpo.error) return cuerpo.error
+  } catch {
+    // The function did not return JSON.
+  }
+  return 'No se pudo confirmar el pedido.'
+}
+
+// Two checkout steps. Confirm sends the cart to confirmar-pedido; prices and stock are decided there.
 function Pago() {
-  const { items, subtotal } = useCart()
+  const { items, subtotal, vaciarCarrito } = useCart()
   const { usuario, perfil } = useAuth()
+  const navegar = useNavigate()
   const [paso, setPaso] = useState(1)
   const [modalidad, setModalidad] = useState('envio')
   const [domicilio, setDomicilio] = useState('')
@@ -44,18 +72,72 @@ function Pago() {
   const [costoEnvio, setCostoEnvio] = useState(0)
   const [zonaConsultada, setZonaConsultada] = useState(false)
   const [resultado, setResultado] = useState('aprobado')
+  const [enviando, setEnviando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
 
   const envio = modalidad === 'envio' ? costoEnvio : 0
 
+  // Auth can arrive after the first render. Fill only fields the user has not typed.
+  useEffect(() => {
+    if (!nombre && perfil?.nombre) setNombre(perfil.nombre)
+    if (!correo && usuario?.email) setCorreo(usuario.email)
+  }, [nombre, correo, perfil, usuario])
+
+  async function confirmarPedido(evento) {
+    evento.preventDefault()
+    if (!usuario || items.length === 0 || enviando) return
+    setEnviando(true)
+    setMensaje('')
+
+    const { data, error } = await supabase.functions.invoke('confirmar-pedido', {
+      body: {
+        items: items.map((item) => ({ productoId: item.id, cantidad: item.cantidad })),
+        entrega: {
+          modalidad,
+          domicilio: modalidad === 'envio' ? domicilio.trim() : null,
+          codigoPostal: modalidad === 'envio' ? codigoPostal.trim() : null,
+        },
+        contacto: {
+          nombre: nombre.trim(),
+          telefono: telefono.trim(),
+          correo: correo.trim(),
+        },
+        resultadoCobro: resultado,
+      },
+    })
+
+    setEnviando(false)
+    if (error) {
+      setMensaje(await mensajeDeConfirmacion(error))
+      return
+    }
+    // A rejected charge is a 200 with no order. The cart stays as it is.
+    if (!data?.id) {
+      setMensaje('El cobro fue rechazado. El pedido no se registró.')
+      return
+    }
+    vaciarCarrito()
+    navegar('/confirmacion', { state: data })
+  }
+
   async function verificarZona() {
-    const { data } = await supabase
-      .from('zonas_cobertura')
-      .select('costo_envio')
-      .eq('codigo_postal', codigoPostal.trim())
-      .maybeSingle()
-    // Unknown postal codes keep shipping and cost 0. They do not block the step.
-    setCostoEnvio(data ? Number(data.costo_envio) : 0)
+    const costo = await costoDeZona(codigoPostal)
+    if (costo === null) return
+    setCostoEnvio(costo)
     setZonaConsultada(true)
+  }
+
+  // Refresh the zone before step 2 so the summary matches the total that will be stored.
+  async function continuar(evento) {
+    evento.preventDefault()
+    if (modalidad === 'envio') {
+      const costo = await costoDeZona(codigoPostal)
+      if (costo !== null) {
+        setCostoEnvio(costo)
+        setZonaConsultada(true)
+      }
+    }
+    setPaso(2)
   }
 
   return (
@@ -68,7 +150,7 @@ function Pago() {
           {paso === 1 ? (
             <>
               <h1 className="titulo">Entrega y datos</h1>
-              <form className="formulario" onSubmit={(e) => { e.preventDefault(); setPaso(2) }}>
+              <form className="formulario" onSubmit={continuar}>
                 <label className="opcion">
                   <input
                     type="radio"
@@ -109,6 +191,7 @@ function Pago() {
                         onChange={(e) => {
                           setCodigoPostal(e.target.value)
                           setZonaConsultada(false)
+                          setCostoEnvio(0)
                         }}
                         required
                       />
@@ -154,7 +237,7 @@ function Pago() {
                   onChange={(e) => setCorreo(e.target.value)}
                   required
                 />
-                <button className="boton" type="submit" disabled={items.length === 0}>
+                <button className="boton" type="submit" disabled={!usuario || items.length === 0}>
                   Continuar
                 </button>
               </form>
@@ -162,7 +245,7 @@ function Pago() {
           ) : (
             <>
               <h1 className="titulo">Cobro simulado</h1>
-              <form className="formulario" onSubmit={(e) => e.preventDefault()}>
+              <form className="formulario" onSubmit={confirmarPedido}>
                 <p className="nota">Resultado a simular</p>
                 {['aprobado', 'rechazado', 'pendiente'].map((valor) => (
                   <label key={valor} className="opcion">
@@ -175,7 +258,10 @@ function Pago() {
                     {valor === 'aprobado' ? 'Aprobado' : valor === 'rechazado' ? 'Rechazado' : 'Pendiente'}
                   </label>
                 ))}
-                <button className="boton" type="submit">Confirmar pedido</button>
+                {mensaje && <p role="alert">{mensaje}</p>}
+                <button className="boton" type="submit" disabled={!usuario || items.length === 0 || enviando}>
+                  {enviando ? 'Confirmando…' : 'Confirmar pedido'}
+                </button>
                 <button className="enlace" type="button" onClick={() => setPaso(1)}>
                   Volver a la entrega
                 </button>
