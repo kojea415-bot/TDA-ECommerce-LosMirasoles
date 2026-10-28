@@ -1,9 +1,18 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 
 // Pantalla del carrito: lista de productos y botón para quitar cada uno
 function Carrito() {
   const { items, subtotal, quitarProducto, cambiarCantidad, vaciarCarrito } = useCart()
+  const { usuario } = useAuth()
+  const navegar = useNavigate()
+
+  // Checkout stays on this page until there is a session and at least one item.
+  function irAPagar() {
+    if (!usuario || items.length === 0) return
+    navegar('/pago')
+  }
 
   if (items.length === 0) {
     return (
@@ -49,6 +58,12 @@ function Carrito() {
       <button type="button" onClick={vaciarCarrito}>
         Vaciar carrito
       </button>
+
+      {usuario && (
+        <button type="button" onClick={irAPagar} disabled={items.length === 0}>
+          Ir a pagar
+        </button>
+      )}
     </main>
   )
 }
