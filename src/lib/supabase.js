@@ -16,3 +16,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl || 'http://localhost', supabaseAnonKey || 'sin-clave')
 
 export const supabaseConfigurado = Boolean(supabaseUrl && supabaseAnonKey)
+
+// Public URL for a product image stored in the productos bucket.
+export function urlImagenProducto(path) {
+  if (!path) return null
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  const { data } = supabase.storage.from('productos').getPublicUrl(path)
+  return data?.publicUrl ?? null
+}

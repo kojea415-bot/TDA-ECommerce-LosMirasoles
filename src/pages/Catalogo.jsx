@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { Link } from 'react-router-dom'
+import { supabase, urlImagenProducto } from '../lib/supabase'
 import { useCart } from '../context/CartContext'
+
+// Dietary flags shown on the card. Filtering by them is a separate story.
+function etiquetasDe(producto) {
+  const etiquetas = []
+  if (producto.sin_tacc) etiquetas.push('Sin TACC')
+  if (producto.vegano) etiquetas.push('Vegano')
+  if (producto.sin_lactosa) etiquetas.push('Sin lactosa')
+  return etiquetas
+}
 
 // Pasa a minúsculas y saca espacios y tildes, para que "organica" encuentre "Orgánica"
 function normalizar(texto) {
@@ -104,11 +114,20 @@ function Catalogo() {
       )}
 
       <ul className="catalogo-lista">
-        {productosFiltrados.map((producto) => (
+        {productosFiltrados.map((producto) => {
+          const imagen = urlImagenProducto(producto.imagen_path)
+          const etiquetas = etiquetasDe(producto)
+          return (
           <li key={producto.id} className="catalogo-tarjeta">
-            <h3>{producto.nombre}</h3>
+            {imagen && <img src={imagen} alt={producto.nombre} />}
+            <h3>
+              <Link to={`/producto/${producto.id}`}>{producto.nombre}</Link>
+            </h3>
             <p>{producto.unidad_venta}</p>
             <p>${producto.precio}</p>
+            {etiquetas.length > 0 && (
+              <p className="catalogo-etiquetas">{etiquetas.join(' · ')}</p>
+            )}
 
             {producto.stock > 0 ? (
               <button
@@ -122,7 +141,8 @@ function Catalogo() {
               <p>Sin stock</p>
             )}
           </li>
-        ))}
+          )
+        })}
       </ul>
     </main>
   )
