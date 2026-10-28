@@ -1,6 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
+import { pesos } from '../lib/presentacion'
+import { urlImagenProducto } from '../lib/supabase'
+import MarcoImagen from '../components/MarcoImagen'
 
 // Pantalla del carrito: lista de productos y botón para quitar cada uno
 function Carrito() {
@@ -14,55 +17,71 @@ function Carrito() {
     navegar('/pago')
   }
 
-  if (items.length === 0) {
-    return (
-      <main className="carrito">
-        <h2>Carrito</h2>
-        <p>Tu carrito está vacío.</p>
-        <Link to="/">Ver productos</Link>
-      </main>
-    )
-  }
-
   return (
-    <main className="carrito">
-      <h2>Carrito</h2>
+    <main className="pagina carrito">
+      <p className="ceja">Carrito</p>
+      <h1 className="titulo">Carrito</h1>
 
-      <ul className="carrito-lista">
-        {items.map((item) => (
-          <li key={item.id} className="carrito-item">
-            <span>{item.nombre}</span>
-            <span>
-              <button type="button" onClick={() => cambiarCantidad(item, -1)}>
-                −
-              </button>{' '}
-              {item.cantidad}{' '}
-              <button
-                type="button"
-                onClick={() => cambiarCantidad(item, 1)}
-                disabled={item.cantidad >= item.stock}
-              >
-                +
-              </button>
-            </span>
-            <span>${item.precio * item.cantidad}</span>
-            <button type="button" onClick={() => quitarProducto(item)}>
-              Quitar
+      {items.length === 0 ? (
+        <p>
+          Tu carrito está vacío. <Link to="/">Ver productos</Link>
+        </p>
+      ) : (
+        <>
+          <div className="carrito-tabla">
+            <p className="carrito-encabezado">Producto</p>
+            <p className="carrito-encabezado">Cantidad</p>
+            <p className="carrito-encabezado">Subtotal</p>
+            {items.map((item) => (
+              <div key={item.id} className="carrito-fila">
+                <MarcoImagen
+                  variante="mini"
+                  src={urlImagenProducto(item.imagen_path)}
+                  alt=""
+                />
+                <div>
+                  <p className="tarjeta-nombre">{item.nombre}</p>
+                  <button type="button" className="enlace" onClick={() => quitarProducto(item)}>
+                    Quitar
+                  </button>
+                </div>
+                <div className="cantidad">
+                  <button type="button" className="boton boton-suave" onClick={() => cambiarCantidad(item, -1)}>
+                    −
+                  </button>
+                  <span>{item.cantidad}</span>
+                  <button
+                    type="button"
+                    className="boton boton-suave"
+                    onClick={() => cambiarCantidad(item, 1)}
+                    disabled={item.cantidad >= item.stock}
+                  >
+                    +
+                  </button>
+                </div>
+                <p>{pesos(item.precio * item.cantidad)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="carrito-cierre">
+            <button type="button" className="enlace" onClick={vaciarCarrito}>
+              Vaciar carrito
             </button>
-          </li>
-        ))}
-      </ul>
-
-      <p className="carrito-subtotal">Subtotal: ${subtotal}</p>
-
-      <button type="button" onClick={vaciarCarrito}>
-        Vaciar carrito
-      </button>
-
-      {usuario && (
-        <button type="button" onClick={irAPagar} disabled={items.length === 0}>
-          Ir a pagar
-        </button>
+            <p>
+              <span className="nota">Subtotal</span>{' '}
+              <strong className="precio">{pesos(subtotal)}</strong>
+            </p>
+            <div className="carrito-acciones">
+              <Link to="/" className="boton boton-suave">Seguir comprando</Link>
+              {usuario && (
+                <button type="button" className="boton" onClick={irAPagar}>
+                  Ir a pagar
+                </button>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </main>
   )
