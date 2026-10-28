@@ -9,7 +9,8 @@ export function CartProvider({ children }){
     function agregarProducto(producto){
         const existe = items.find((i) => i.id === producto.id) 
         if (existe){
-            setItems(items.map((i) => (i.id === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i)))
+            // Math.min: la cantidad nunca pasa del stock
+            setItems(items.map((i) => (i.id === producto.id ? { ...i, cantidad: Math.min(i.cantidad + 1, i.stock) } : i)))
         }else{
             setItems([...items, { ...producto, cantidad: 1 }])
         }
@@ -20,10 +21,11 @@ export function CartProvider({ children }){
     }
 
     // cambio es +1 o -1; si la cantidad llega a 0, el producto sale del carrito
+    // y nunca pasa del stock
     function cambiarCantidad(producto, cambio){
         setItems(
             items
-                .map((i) => (i.id === producto.id ? { ...i, cantidad: i.cantidad + cambio } : i))
+                .map((i) => (i.id === producto.id ? { ...i, cantidad: Math.min(i.cantidad + cambio, i.stock) } : i))
                 .filter((i) => i.cantidad > 0)
         )
     }
