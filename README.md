@@ -70,7 +70,7 @@ Los tickets de prioridad alta están en Listo: catálogo, carrito, checkout con 
 
 ## Entrega
 
-Los dos archivos que pide la guía de la cátedra están en `entrega/`: `EquipoOjea_Informe.pdf` y `EquipoOjea_Codigo.txt`. El equipo es Kevin Ojea y Juan Garcia. No hay número de equipo.
+Los dos archivos que pide la guía de la cátedra están en la raíz del repositorio: `EquipoOjea_Informe.pdf` y `EquipoOjea_Codigo.txt`. El equipo es Kevin Ojea y Juan Garcia. No hay número de equipo.
 
 ## Documentación
 

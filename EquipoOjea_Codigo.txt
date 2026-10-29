@@ -1,0 +1,4587 @@
+PROYECTO: Dietética Los Mirasoles
+EQUIPO: Ojea
+VERSION: entrega-final
+
+===== INICIO ARCHIVO: .env.example =====
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+===== FIN ARCHIVO: .env.example =====
+
+===== INICIO ARCHIVO: cypress.config.js =====
+import { defineConfig } from 'cypress'
+
+export default defineConfig({
+  e2e: {
+    // Puerto por defecto de "npm run dev"
+    baseUrl: 'http://localhost:5173',
+    // Tamaño de celular (RNF-01: 360 px de ancho)
+    viewportWidth: 360,
+    viewportHeight: 740,
+    supportFile: false,
+  },
+})
+===== FIN ARCHIVO: cypress.config.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/app.cy.js =====
+// Prueba de ejemplo: confirma que la app abre
+describe('App', () => {
+  it('muestra el título de la tienda', () => {
+    cy.visit('/')
+    cy.contains('Dietética Los Mirasoles')
+  })
+})
+===== FIN ARCHIVO: cypress/e2e/app.cy.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/ayudas.js =====
+// Ayudas compartidas por los specs (no es un spec: no termina en .cy.js).
+// Todo Supabase se simula con cy.intercept; nunca se toca la base real.
+
+// Mismo formato que usa la app para los precios
+export const pesos = (valor) => `$ ${Number(valor).toLocaleString('es-AR')}`
+
+// Usuario y perfil de prueba (datos inventados)
+export const USUARIO = { id: '00000000-0000-4000-8000-000000000001', email: 'cliente@prueba.test' }
+export const PERFIL = { nombre: 'Ana Prueba', rol: 'cliente' }
+
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers':
+    'authorization, apikey, content-type, x-client-info, prefer, accept, accept-profile, content-profile',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'content-type': 'application/json',
+}
+
+// Responde con JSON (acepta null para simular una respuesta vacía)
+export function responder(req, cuerpo, estado = 200) {
+  req.reply({ statusCode: estado, headers: CORS, body: JSON.stringify(cuerpo) })
+}
+
+// Fábrica de productos de ejemplo
+let contador = 0
+export function producto(datos = {}) {
+  contador += 1
+  return {
+    id: `10000000-0000-4000-8000-${String(contador).padStart(12, '0')}`,
+    nombre: `Producto ${contador}`,
+    descripcion: 'Descripción de prueba',
+    info_nutricional: null,
+    precio: 1000,
+    stock: 5,
+    unidad_venta: 'unidad',
+    sin_tacc: false,
+    vegano: false,
+    sin_lactosa: false,
+    categoria_id: null,
+    imagen_path: null,
+    publicado: true,
+    ...datos,
+  }
+}
+
+// Token con forma de JWT (solo para que supabase-js lo acepte; no vale nada)
+function tokenFalso() {
+  const base64url = (obj) =>
+    btoa(JSON.stringify(obj)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const payload = {
+    sub: USUARIO.id,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: USUARIO.email,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  }
+  return `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(payload)}.firma-falsa`
+}
+
+export function usuarioAuth(extra = {}) {
+  return {
+    id: USUARIO.id,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: USUARIO.email,
+    app_metadata: {},
+    user_metadata: { nombre: PERFIL.nombre },
+    identities: [{ id: USUARIO.id, provider: 'email' }],
+    created_at: '2026-01-01T00:00:00Z',
+    ...extra,
+  }
+}
+
+// Debe llamarse primero: lo que no tenga un intercept propio responde 500 y queda
+// contado en @noPrevisto (ningún request llega a la base real).
+export function bloquearSupabase() {
+  cy.intercept(
+    { url: /\.supabase\.co|\/(rest|auth|functions|storage)\/v1\// },
+    (req) => responder(req, { message: 'Request de Supabase no previsto en el test' }, 500)
+  ).as('noPrevisto')
+}
+
+// Para usar en afterEach: confirma que no se coló ningún request sin simular
+export function verificarSinNoPrevistos() {
+  cy.get('@noPrevisto.all').should('have.length', 0)
+}
+
+// Catálogo: lista de productos (o uno solo si piden por id) y categorías
+export function simularCatalogo(productos, categorias = []) {
+  cy.intercept({ method: 'GET', pathname: '/rest/v1/categorias' }, (req) =>
+    responder(req, categorias)
+  )
+  cy.intercept({ method: 'GET', pathname: '/rest/v1/productos' }, (req) => {
+    const id = new URL(req.url).searchParams.get('id')
+    if (id) {
+      responder(req, productos.find((p) => `eq.${p.id}` === id) ?? null)
+    } else {
+      responder(req, productos)
+    }
+  }).as('productos')
+}
+
+// Zonas de cobertura: costos por código postal; los demás códigos no tienen zona (null)
+export function simularZonas(costos = { 1754: 1500 }) {
+  cy.intercept({ method: 'GET', pathname: '/rest/v1/zonas_cobertura' }, (req) => {
+    const cp = (new URL(req.url).searchParams.get('codigo_postal') ?? '').replace('eq.', '')
+    responder(req, cp in costos ? { costo_envio: costos[cp] } : null)
+  })
+}
+
+// Login simulado: token de contraseña y perfil
+export function simularSesion() {
+  cy.intercept({ method: 'POST', pathname: '/auth/v1/token' }, (req) =>
+    responder(req, {
+      access_token: tokenFalso(),
+      token_type: 'bearer',
+      expires_in: 3600,
+      refresh_token: 'refresh-falso',
+      user: usuarioAuth(),
+    })
+  )
+  cy.intercept({ method: 'GET', pathname: '/rest/v1/perfiles' }, (req) => responder(req, PERFIL))
+}
+
+// Prepara todo lo necesario para una pantalla con catálogo y sesión posible
+export function prepararTienda({ productos, categorias = [] }) {
+  bloquearSupabase()
+  simularCatalogo(productos, categorias)
+  simularSesion()
+}
+
+// Entra por la pantalla de ingreso (sin salir del router, para no perder el carrito).
+// La contraseña es aleatoria: el intercept acepta cualquiera.
+export function ingresarPorUI() {
+  cy.contains('a', 'Cuenta').click()
+  cy.get('#correo').type(USUARIO.email)
+  cy.get('#contrasenia').type(`x${Cypress._.random(1e9)}`, { log: false })
+  cy.contains('button', 'Entrar').click()
+  cy.contains('button', 'Salir').should('be.visible')
+}
+
+// Primera unidad: "Agregar". Si ya está en el carrito, el + de la tarjeta.
+export function agregarDesdeCatalogo(nombre) {
+  cy.contains('.tarjeta', nombre).then(($tarjeta) => {
+    const sumar = $tarjeta.find(`button[aria-label="Sumar una unidad de ${nombre}"]`)
+    if (sumar.length) {
+      cy.wrap(sumar).click()
+    } else {
+      cy.wrap($tarjeta).contains('button', 'Agregar').click()
+    }
+  })
+}
+
+// El contador va en la insignia, no en el texto "Carrito (n)".
+export function verCarrito(cantidad) {
+  cy.get('a.header-carrito').find('.cuenta').should('have.text', String(cantidad))
+}
+
+// Va al carrito con el link del Header (no recarga la página)
+export function irAlCarrito() {
+  cy.get('a.header-carrito').click()
+}
+===== FIN ARCHIVO: cypress/e2e/ayudas.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/carrito.cy.js =====
+import {
+  agregarDesdeCatalogo,
+  ingresarPorUI,
+  irAlCarrito,
+  pesos,
+  verCarrito,
+  prepararTienda,
+  producto,
+  verificarSinNoPrevistos,
+} from './ayudas'
+
+describe('Carrito', () => {
+  afterEach(verificarSinNoPrevistos)
+
+  it('HU-04: agregar, sumar con tope de stock, restar, quitar y vaciar', () => {
+    const harina = producto({ nombre: 'Harina de arroz', precio: 1200, stock: 3 })
+    const miel = producto({ nombre: 'Miel de campo', precio: 2500, stock: 5 })
+    prepararTienda({ productos: [harina, miel] })
+
+    const subtotal = (total) => cy.get('.carrito-cierre strong').should('have.text', pesos(total))
+    const fila = (nombre) => cy.contains('.carrito-fila', nombre)
+
+    cy.visit('/')
+
+    // El mismo producto dos veces: una fila con cantidad 2 y Header (2)
+    agregarDesdeCatalogo('Harina de arroz')
+    agregarDesdeCatalogo('Harina de arroz')
+    verCarrito(2)
+    agregarDesdeCatalogo('Miel de campo')
+    irAlCarrito()
+    cy.get('.carrito-fila').should('have.length', 2)
+    fila('Harina de arroz').find('.cantidad span').should('have.text', '2')
+    subtotal(1200 * 2 + 2500)
+
+    // El + llega al tope de stock (3) y se deshabilita
+    fila('Harina de arroz').find('.cantidad button').last().click()
+    fila('Harina de arroz').find('.cantidad span').should('have.text', '3')
+    fila('Harina de arroz').find('.cantidad button').last().should('be.disabled')
+    subtotal(1200 * 3 + 2500)
+
+    // El − hasta 0 quita la fila
+    for (let i = 0; i < 3; i++) {
+      fila('Harina de arroz').find('.cantidad button').first().click()
+    }
+    cy.contains('.carrito-fila', 'Harina de arroz').should('not.exist')
+    subtotal(2500)
+
+    // Sin sesión, seguir comprando pide ingreso y vuelve al catálogo
+    cy.contains('a', 'Seguir comprando').click()
+    cy.location('pathname').should('eq', '/ingreso')
+    ingresarPorUI()
+    agregarDesdeCatalogo('Harina de arroz')
+    irAlCarrito()
+    subtotal(1200 + 2500)
+    fila('Harina de arroz').contains('button', 'Quitar').click()
+    cy.contains('.carrito-fila', 'Harina de arroz').should('not.exist')
+    subtotal(2500)
+
+    // "Vaciar carrito" deja el carrito vacío
+    cy.contains('button', 'Vaciar carrito').click()
+    cy.contains('Tu carrito está vacío').should('be.visible')
+    verCarrito(0)
+  })
+
+  it('HU-04/HU-05: "Ir a pagar" solo con sesión y con productos', () => {
+    const harina = producto({ nombre: 'Harina de arroz', precio: 1200, stock: 3 })
+    prepararTienda({ productos: [harina] })
+
+    cy.visit('/')
+
+    // Sin sesión y con producto: no hay botón
+    agregarDesdeCatalogo('Harina de arroz')
+    irAlCarrito()
+    cy.contains('.carrito-fila', 'Harina de arroz').should('exist')
+    cy.contains('button', 'Ir a pagar').should('not.exist')
+
+    // Con sesión y producto: aparece (el carrito se conserva al ingresar)
+    ingresarPorUI()
+    irAlCarrito()
+    cy.contains('button', 'Ir a pagar').should('be.visible')
+
+    // Con sesión y carrito vacío: no hay botón
+    cy.contains('button', 'Vaciar carrito').click()
+    cy.contains('Tu carrito está vacío').should('be.visible')
+    cy.contains('button', 'Ir a pagar').should('not.exist')
+
+    // Con sesión y un producto: el botón lleva a /pago
+    cy.contains('a', 'Ver productos').click()
+    agregarDesdeCatalogo('Harina de arroz')
+    irAlCarrito()
+    cy.contains('button', 'Ir a pagar').click()
+    cy.location('pathname').should('eq', '/pago')
+  })
+})
+===== FIN ARCHIVO: cypress/e2e/carrito.cy.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/catalogo.cy.js =====
+import { prepararTienda, producto, verCarrito, verificarSinNoPrevistos } from './ayudas'
+
+describe('Catálogo', () => {
+  afterEach(verificarSinNoPrevistos)
+
+  it('HU-03: los filtros se combinan sin recargar', () => {
+    const almacen = { id: 'cat-almacen', nombre: 'Almacén' }
+    const bebidas = { id: 'cat-bebidas', nombre: 'Bebidas' }
+    const harina = producto({ nombre: 'Harina de arroz', sin_tacc: true, vegano: true, categoria_id: almacen.id })
+    const galletas = producto({ nombre: 'Galletas de avena', sin_tacc: true, vegano: true, sin_lactosa: true, categoria_id: bebidas.id })
+    const leche = producto({ nombre: 'Leche de almendras', vegano: true, sin_lactosa: true, categoria_id: almacen.id })
+    const pan = producto({ nombre: 'Pan de molde', sin_tacc: true, categoria_id: bebidas.id })
+    const sal = producto({ nombre: 'Sal marina', categoria_id: almacen.id }) // sin etiquetas
+
+    prepararTienda({ productos: [harina, galletas, leche, pan, sal], categorias: [almacen, bebidas] })
+    cy.visit('/')
+    cy.get('.tarjeta').should('have.length', 5)
+
+    // En desarrollo React ejecuta el efecto dos veces (StrictMode), así que no se
+    // compara contra 1: se anota cuántos GET hubo al cargar y se compara al final
+    let pedidosAlCargar
+    cy.get('@productos.all').then((pedidos) => {
+      pedidosAlCargar = pedidos.length
+    })
+
+    const filtro = (texto) => cy.contains('label', texto).find('input')
+
+    // Sin TACC + Vegano: solo los que tienen ambas etiquetas
+    filtro('Sin TACC').check()
+    filtro('Vegano').check()
+    cy.get('.tarjeta').should('have.length', 2)
+    cy.contains('.tarjeta', 'Harina de arroz').should('exist')
+    cy.contains('.tarjeta', 'Galletas de avena').should('exist')
+    // El producto sin etiquetas desaparece con filtros activos
+    cy.contains('.tarjeta', 'Sal marina').should('not.exist')
+
+    // Sumar una categoría restringe más
+    cy.contains('button.chip', 'Almacén').click()
+    cy.get('.tarjeta').should('have.length', 1)
+    cy.contains('.tarjeta', 'Harina de arroz').should('exist')
+
+    // Volver a "Todas" devuelve productos
+    cy.contains('button.chip', 'Todas').click()
+    cy.get('.tarjeta').should('have.length', 2)
+
+    // Desactivar un filtro también devuelve productos
+    filtro('Vegano').uncheck()
+    cy.get('.tarjeta').should('have.length', 3)
+    cy.contains('.tarjeta', 'Pan de molde').should('exist')
+    cy.contains('.tarjeta', 'Sal marina').should('not.exist')
+
+    // Sin filtros vuelve el producto sin etiquetas
+    filtro('Sin TACC').uncheck()
+    cy.get('.tarjeta').should('have.length', 5)
+
+    // Todo se filtró en el navegador: los filtros no volvieron a pedir productos
+    cy.get('@productos.all').then((pedidos) => {
+      expect(pedidos.length).to.equal(pedidosAlCargar)
+    })
+  })
+
+  it('HU-02: un producto sin stock no se puede agregar y uno con stock sí', () => {
+    const agotado = producto({ nombre: 'Avena agotada', stock: 0 })
+    const disponible = producto({ nombre: 'Miel de campo', stock: 4 })
+
+    prepararTienda({ productos: [agotado, disponible] })
+    cy.visit('/')
+
+    // Catálogo: se ve, dice sin stock y no tiene botón Agregar
+    cy.contains('.tarjeta', 'Avena agotada').within(() => {
+      cy.contains('Sin stock').should('be.visible')
+      cy.contains('button', 'Agregar').should('not.exist')
+    })
+
+    // Ficha: "No disponible" y sin "Agregar al carrito"
+    cy.contains('h2 a', 'Avena agotada').click()
+    cy.contains('.disponible', 'No disponible').should('be.visible')
+    cy.contains('button', 'Agregar al carrito').should('not.exist')
+    cy.contains('a', 'Volver al catálogo').click()
+
+    // Con stock: se agrega y el Header lo refleja
+    verCarrito(0)
+    cy.contains('.tarjeta', 'Miel de campo').contains('button', 'Agregar').click()
+    verCarrito(1)
+  })
+})
+===== FIN ARCHIVO: cypress/e2e/catalogo.cy.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/checkout.cy.js =====
+import {
+  USUARIO,
+  agregarDesdeCatalogo,
+  ingresarPorUI,
+  irAlCarrito,
+  pesos,
+  verCarrito,
+  prepararTienda,
+  producto,
+  responder,
+  simularZonas,
+  verificarSinNoPrevistos,
+} from './ayudas'
+
+const harina = producto({ nombre: 'Harina de arroz', precio: 1200, stock: 5 })
+
+// Pedido que devolvería la función cuando todo sale bien
+const pedidoOk = (cantidad) => ({
+  id: 4821,
+  estado: 'en_preparacion',
+  items: [{ productoId: harina.id, nombre: harina.nombre, cantidad, precioUnitario: harina.precio }],
+  total: harina.precio * cantidad,
+  modalidad: 'retiro',
+  mail_ok: true,
+})
+
+// Entra, agrega la harina `cantidad` veces y llega a /pago con clics (el carrito vive en memoria)
+function llegarAPago(cantidad = 2) {
+  cy.visit('/')
+  ingresarPorUI()
+  for (let i = 0; i < cantidad; i++) agregarDesdeCatalogo(harina.nombre)
+  irAlCarrito()
+  cy.contains('button', 'Ir a pagar').click()
+  cy.location('pathname').should('eq', '/pago')
+}
+
+// Paso 1 con retiro en el local y datos de contacto.
+// Nombre y correo vienen precargados y la pantalla vuelve a llenarlos si quedan vacíos,
+// por eso se pisan con {selectall} en vez de usar clear() (que deja el correo duplicado).
+function completarPaso1Retiro() {
+  cy.contains('label', 'Retiro en el local').find('input').check()
+  cy.get('#nombre-pedido').type('{selectall}Ana Prueba')
+  cy.get('#telefono').type('1100000000')
+  cy.get('#correo-pedido').type(`{selectall}${USUARIO.email}`)
+  cy.contains('button', 'Continuar').click()
+  cy.contains('Cobro simulado').should('be.visible')
+}
+
+function elegirResultado(texto) {
+  cy.contains('label', texto).find('input').check()
+  cy.contains('button', 'Confirmar pedido').click()
+}
+
+describe('Checkout', () => {
+  beforeEach(() => {
+    prepararTienda({ productos: [harina] })
+    simularZonas({ 1754: 1500 })
+  })
+
+  afterEach(verificarSinNoPrevistos)
+
+  it('HU-08: pago aprobado confirma el pedido y vacía el carrito', () => {
+    cy.intercept({ method: 'POST', pathname: '/functions/v1/confirmar-pedido' }, (req) =>
+      responder(req, pedidoOk(2), 201)
+    ).as('confirmar')
+
+    llegarAPago(2)
+    completarPaso1Retiro()
+    elegirResultado('Aprobado')
+
+    // El body trae solo ids y cantidades: sin precios ni datos de tarjeta
+    cy.wait('@confirmar').then(({ request }) => {
+      const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
+      expect(body.resultadoCobro).to.eq('aprobado')
+      expect(body.items).to.deep.eq([{ productoId: harina.id, cantidad: 2 }])
+      expect(JSON.stringify(body)).not.to.match(/precio|tarjeta|card|cvv|vencimiento/i)
+    })
+
+    // Pantalla de confirmación
+    cy.location('pathname').should('eq', '/confirmacion')
+    cy.contains('Pedido #4821 confirmado').should('be.visible')
+    cy.contains('En preparación').should('be.visible')
+    cy.contains(`${harina.nombre} × 2`).should('be.visible')
+    cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
+    verCarrito(0)
+  })
+
+  it('HU-08: pago rechazado no registra el pedido y permite reintentar', () => {
+    // Rechazado: 200 sin id. Cualquier otro resultado: pedido confirmado.
+    cy.intercept({ method: 'POST', pathname: '/functions/v1/confirmar-pedido' }, (req) => {
+      const rechazado = req.body.resultadoCobro === 'rechazado'
+      responder(req, rechazado ? { estado: 'rechazado' } : pedidoOk(2), rechazado ? 200 : 201)
+    }).as('confirmar')
+
+    llegarAPago(2)
+    completarPaso1Retiro()
+    elegirResultado('Rechazado')
+    cy.wait('@confirmar')
+
+    // Sigue en /pago con el aviso y el carrito intacto
+    cy.location('pathname').should('eq', '/pago')
+    cy.get('[role="alert"]').should('contain', 'El cobro fue rechazado')
+    verCarrito(2)
+    cy.get('.resumen').should('contain', `${harina.nombre} × 2`)
+    cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
+
+    // Reintento con otro resultado
+    elegirResultado('Aprobado')
+    cy.wait('@confirmar').its('request.body.resultadoCobro').should('eq', 'aprobado')
+    cy.location('pathname').should('eq', '/confirmacion')
+    cy.contains('Pedido #4821 confirmado').should('be.visible')
+  })
+
+  it('HU-06: sin stock suficiente muestra el producto y deja el carrito intacto', () => {
+    // La función responde 409 con el nombre del producto
+    cy.intercept({ method: 'POST', pathname: '/functions/v1/confirmar-pedido' }, (req) =>
+      responder(req, { error: 'Stock insuficiente', producto: harina.nombre }, 409)
+    ).as('confirmar')
+
+    llegarAPago(2)
+    completarPaso1Retiro()
+    elegirResultado('Aprobado')
+    cy.wait('@confirmar')
+
+    cy.get('[role="alert"]').should('have.text', `No alcanza el stock de ${harina.nombre}.`)
+    cy.location('pathname').should('eq', '/pago')
+    verCarrito(2)
+    cy.get('.resumen').should('contain', `${harina.nombre} × 2`)
+    cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
+  })
+
+  it('HU-07: retiro vs envío, costo por zona y zona sin cobertura', () => {
+    const subtotal = harina.precio * 2
+    llegarAPago(2)
+
+    // Retiro: envío $ 0 y sin domicilio ni código postal
+    cy.contains('label', 'Retiro en el local').find('input').check()
+    cy.contains('label', `envío ${pesos(0)}`).should('be.visible')
+    cy.get('#domicilio').should('not.exist')
+    cy.get('#cp').should('not.exist')
+    cy.get('.resumen-linea').should('contain', pesos(0))
+    cy.get('.resumen-total').should('contain', pesos(subtotal))
+
+    // Envío: aparecen los campos; CP 1754 cuesta 1500 y se suma al total
+    cy.contains('label', 'Envío a domicilio').find('input').check()
+    cy.get('#domicilio').should('be.visible')
+    cy.get('#cp').type('1754')
+    cy.contains('button', 'Verificar zona').click()
+    cy.contains(`Costo de envío ${pesos(1500)}`).should('be.visible')
+    cy.get('.resumen-linea').should('contain', pesos(1500))
+    cy.get('.resumen-total').should('contain', pesos(subtotal + 1500))
+
+    // Volver a retiro: el total vuelve al subtotal
+    cy.contains('label', 'Retiro en el local').find('input').check()
+    cy.get('.resumen-linea').should('contain', pesos(0))
+    cy.get('.resumen-total').should('contain', pesos(subtotal))
+
+    // CP sin zona: costo $ 0 y se puede avanzar al paso 2
+    cy.contains('label', 'Envío a domicilio').find('input').check()
+    cy.get('#cp').clear().type('9999')
+    cy.contains('button', 'Verificar zona').click()
+    cy.contains(`Costo de envío ${pesos(0)}`).should('be.visible')
+    cy.get('#domicilio').type('Calle Falsa 123')
+    cy.get('#nombre-pedido').type('{selectall}Ana Prueba')
+    cy.get('#telefono').type('1100000000')
+    cy.get('#correo-pedido').type(`{selectall}${USUARIO.email}`)
+    cy.contains('button', 'Continuar').click()
+    cy.contains('Cobro simulado').should('be.visible')
+    cy.get('.resumen-total').should('contain', pesos(subtotal))
+  })
+})
+===== FIN ARCHIVO: cypress/e2e/checkout.cy.js =====
+
+===== INICIO ARCHIVO: cypress/e2e/ingreso.cy.js =====
+import { bloquearSupabase, responder, usuarioAuth, verificarSinNoPrevistos } from './ayudas'
+
+// Rellena el panel "Crear cuenta" con datos inventados (contraseña aleatoria)
+function completarAlta() {
+  cy.get('#nombre').type('Ana Prueba')
+  cy.get('#correo-alta').type('nueva@prueba.test')
+  cy.get('#contrasenia-alta').type(`x${Cypress._.random(1e9)}`, { log: false })
+  cy.contains('button', 'Registrarme').click()
+}
+
+describe('Ingreso', () => {
+  beforeEach(() => {
+    bloquearSupabase()
+    cy.intercept({ method: 'GET', pathname: '/rest/v1/productos' }, (req) => responder(req, []))
+    cy.intercept({ method: 'GET', pathname: '/rest/v1/categorias' }, (req) => responder(req, []))
+  })
+
+  afterEach(verificarSinNoPrevistos)
+
+  it('HU-05: registro con correo ya registrado muestra el aviso y no navega', () => {
+    // Supabase devuelve el usuario con identities vacío cuando el correo ya existe
+    cy.intercept({ method: 'POST', pathname: '/auth/v1/signup' }, (req) =>
+      responder(req, usuarioAuth({ identities: [] }))
+    ).as('alta')
+
+    cy.visit('/ingreso')
+    completarAlta()
+    cy.wait('@alta')
+
+    cy.get('[role="alert"]').should('have.text', 'Ese correo ya está registrado.')
+    cy.location('pathname').should('eq', '/ingreso')
+  })
+
+  it('HU-05: alta exitosa navega al inicio', () => {
+    // Usuario nuevo: identities con un elemento
+    cy.intercept({ method: 'POST', pathname: '/auth/v1/signup' }, (req) =>
+      responder(req, usuarioAuth())
+    ).as('alta')
+
+    cy.visit('/ingreso')
+    completarAlta()
+    cy.wait('@alta')
+
+    cy.location('pathname').should('eq', '/')
+    cy.get('[role="alert"]').should('not.exist')
+  })
+})
+===== FIN ARCHIVO: cypress/e2e/ingreso.cy.js =====
+
+===== INICIO ARCHIVO: index.html =====
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>taller-de-aplicaciones</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+===== FIN ARCHIVO: index.html =====
+
+===== INICIO ARCHIVO: package.json =====
+{
+  "name": "taller-de-aplicaciones",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "cy:open": "cypress open",
+    "cy:run": "cypress run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "cypress": "^16.2.0",
+    "oxlint": "^1.81.0",
+    "vite": "^8.3.0"
+  }
+}
+===== FIN ARCHIVO: package.json =====
+
+===== INICIO ARCHIVO: README.md =====
+# Dietética Los Mirasoles
+
+Proyecto final de Taller de Desarrollo de Aplicaciones.
+
+Tienda web para un comercio de San Justo, Buenos Aires. Catálogo con filtros de aptitud, carrito, checkout con cobro simulado, retiro en el local y envío en GBA Oeste.
+
+Las tres fases están en [`docs/`](docs/). Este archivo se va completando con lo que ya funciona.
+
+## Stack
+
+- React con Vite para las pantallas y el carrito en memoria.
+- Supabase para Postgres, Auth, las imágenes y los datos de la tienda.
+- La función `confirmar-pedido` graba el pedido, descuenta stock y manda el comprobante.
+- El comprobante sale por SMTP de Gmail. La contraseña de aplicación no va en este repositorio.
+
+## Cómo correrla
+
+```bash
+npm install
+npm run dev
+```
+
+Hacen falta `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. En este repo ya están en `.env`.
+
+## Qué hay hoy
+
+La tienda recorre el circuito de compra y el panel.
+
+- El catálogo es público: búsqueda, filtros de aptitud y ficha. Si el producto ya está en el carrito, el catálogo y la ficha muestran el mismo − / cantidad / +.
+- El carrito vive en memoria. Sin sesión, "Seguir comprando" lleva al ingreso y después vuelve al catálogo. "Ir a pagar" aparece con sesión y con ítems.
+- El checkout tiene dos pasos: retiro o envío, y cobro simulado (aprobado, rechazado o pendiente). Un código postal que no está en la tabla no frena el envío; el costo queda en cero.
+- Confirmar llama a `confirmar-pedido`. Aprobado o pendiente graba el pedido y manda el comprobante al correo del checkout. Rechazado no graba nada, no manda correo y deja el carrito. Si el SMTP falla, el pedido queda igual y `mail_ok` queda en falso. La confirmación muestra ese pedido; recargar la pantalla no inventa un número.
+- El panel está en `/admin/pedidos` y `/admin/productos`. Entra por el mismo ingreso. Guarda alta, edición, publicación, precio y stock, y cambia el estado del pedido. Al entrar en preparación, listo para retiro, despachado o entregado descuenta el stock una sola vez; al salir, lo devuelve. Sin sesión, esa ruta vuelve al ingreso. Un cliente autenticado ve el aviso y no entra.
+- Las pantallas se acomodan en una columna. El circuito de compra entra en 360 px de ancho.
+
+## Cuentas
+
+Las dos usan `/ingreso`.
+
+| Cuenta | Correo | Contraseña |
+| --- | --- | --- |
+| Cliente de prueba | `cliente.prueba@mail.com` | `Mirasoles.prueba` |
+| Administrador | `administrador_losmirasoles@mail.com` | `Mirasoles.admin` |
+
+El cliente ve la tienda. El administrador entra al panel y no ve el catálogo, el carrito ni el checkout.
+
+## Supabase
+
+Proyecto `Los Mirasoles (TDA)`. Las columnas están en el [diseño](<docs/U3 - TDA - Diseno.md>).
+
+| Pieza | Qué guarda |
+| --- | --- |
+| `categorias` | Las siete líneas del catálogo, ya cargadas |
+| `productos` | Precio, stock, publicado, aptitud (sin TACC, vegano, sin lactosa) e imagen |
+| `zonas_cobertura` | Código postal y costo de envío. Hoy están 1706 y 1754. Si el código no está, el envío sigue y el costo queda en cero |
+| `perfiles` | Una fila por usuario de Auth. El alta crea rol `cliente`. Hay una cuenta precargada con rol `administrador` |
+| `pedidos` | Número visible, estado, cobro, entrega, contacto, `mail_ok` y si el stock ya fue descontado |
+| `pedido_items` | Nombre, cantidad y precio copiados al confirmar |
+| `pedido_cambios` | Fecha de cada estado. La escribe la base cuando el pedido se crea o cambia de estado |
+| depósito `productos` | Una imagen de catálogo por producto. Lectura pública. Escribe el administrador |
+| `confirmar-pedido` | Única escritura del alta de un pedido y del stock del checkout. Después manda el comprobante |
+
+El navegador lee el catálogo. No inserta pedidos. La confirmación de correo de Auth está apagada, así que el registro deja la sesión abierta. El comprobante no sale por Auth: lo manda `confirmar-pedido` con `GMAIL_USER` y `GMAIL_APP_PASSWORD`, que viven en los secretos de la función y no en este repositorio.
+
+## Tablero
+
+[Tablero de TDA-LosMirasoles](https://alumnos-team-dx2olafw.atlassian.net/jira/software/projects/TSK/boards/2).
+
+Los tickets de prioridad alta están en Listo: catálogo, carrito, checkout con comprobante, panel y el circuito en 360 px.
+
+## Entrega
+
+Los dos archivos que pide la guía de la cátedra están en la raíz del repositorio: `EquipoOjea_Informe.pdf` y `EquipoOjea_Codigo.txt`. El equipo es Kevin Ojea y Juan Garcia. No hay número de equipo.
+
+## Documentación
+
+- [Requerimientos](<docs/U1 - TDA - Requerimientos iniciales.md>)
+- [Análisis](<docs/U2 - TDA - Analisis.md>)
+- [Diseño](<docs/U3 - TDA - Diseno.md>)
+===== FIN ARCHIVO: README.md =====
+
+===== INICIO ARCHIVO: src/App.jsx =====
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import Carrito from './pages/Carrito'
+import Catalogo from './pages/Catalogo'
+import Confirmacion from './pages/Confirmacion'
+import Ficha from './pages/Ficha'
+import Ingreso from './pages/Ingreso'
+import Pago from './pages/Pago'
+import PedidosAdmin from './pages/admin/Pedidos'
+import ProductosAdmin from './pages/admin/Productos'
+
+import Header from './components/Header'
+import { useAuth } from './context/AuthContext'
+
+// The store header and the customer screens. An administrator never sees them.
+function Tienda() {
+  const { usuario, perfil, perfilListo, cargando } = useAuth()
+
+  if (cargando || (usuario && !perfilListo)) {
+    return (
+      <main className="pagina">
+        <p>Cargando...</p>
+      </main>
+    )
+  }
+
+  if (perfil?.rol === 'administrador') {
+    return <Navigate to="/admin/pedidos" replace />
+  }
+
+  return (
+    <>
+      <Header />
+      <Routes>
+        <Route path="/" element={<Catalogo />} />
+        <Route path="/producto/:id" element={<Ficha />} />
+        <Route path="/carrito" element={<Carrito />} />
+        <Route path="/ingreso" element={<Ingreso />} />
+        <Route path="/pago" element={<Pago />} />
+        <Route path="/confirmacion" element={<Confirmacion />} />
+      </Routes>
+    </>
+  )
+}
+
+function App() {
+  const enPanel = useLocation().pathname.startsWith('/admin')
+
+  if (enPanel) {
+    return (
+      <Routes>
+        <Route path="/admin/pedidos" element={<PedidosAdmin />} />
+        <Route path="/admin/productos" element={<ProductosAdmin />} />
+      </Routes>
+    )
+  }
+
+  return <Tienda />
+}
+
+export default App
+===== FIN ARCHIVO: src/App.jsx =====
+
+===== INICIO ARCHIVO: src/components/AdminBar.jsx =====
+import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import Icono from './Icono'
+
+function AdminBar({ titulo, accion }) {
+  const { cerrarSesion } = useAuth()
+  return (
+    <header className="admin-bar">
+      <h1>
+        <Icono nombre="hoja" />
+        {titulo}
+      </h1>
+      <nav>
+        <Link to="/admin/productos">Productos</Link>
+        <Link to="/admin/pedidos">Pedidos</Link>
+        {accion}
+        <button type="button" onClick={cerrarSesion}>
+          <Icono nombre="salir" />
+          Salir
+        </button>
+      </nav>
+    </header>
+  )
+}
+
+export default AdminBar
+===== FIN ARCHIVO: src/components/AdminBar.jsx =====
+
+===== INICIO ARCHIVO: src/components/ConexionSupabase.jsx =====
+import { useEffect, useState } from 'react'
+import { supabase, supabaseConfigurado } from '../lib/supabase'
+
+const TABLA_DE_PRUEBA = 'categorias'
+
+function ConexionSupabase() {
+  const [estado, setEstado] = useState('Probando...')
+
+  useEffect(() => {
+    async function probar() {
+      if (!supabaseConfigurado) {
+        setEstado('Error: faltan las variables de entorno (revisar .env)')
+        return
+      }
+      const { error } = await supabase.from(TABLA_DE_PRUEBA).select('*').limit(1)
+      setEstado(error ? `Error: ${error.message}` : 'Conexión OK')
+    }
+    probar()
+  }, [])
+
+  return <p>{estado}</p>
+}
+
+export default ConexionSupabase
+===== FIN ARCHIVO: src/components/ConexionSupabase.jsx =====
+
+===== INICIO ARCHIVO: src/components/ControlCantidad.jsx =====
+import { useCart } from '../context/CartContext'
+import Icono from './Icono'
+
+// Add button until the product is in the cart; then the same − / + stepper as the cart.
+function ControlCantidad({ producto, cantidad, etiqueta = 'Agregar', icono = 'mas' }) {
+  const { agregarProducto, cambiarCantidad } = useCart()
+
+  if (cantidad > 0) {
+    return (
+      <div className="cantidad">
+        <button
+          type="button"
+          className="boton boton-suave"
+          aria-label={`Quitar una unidad de ${producto.nombre}`}
+          onClick={() => cambiarCantidad(producto, -1)}
+        >
+          <Icono nombre="menos" />
+        </button>
+        <span>{cantidad}</span>
+        <button
+          type="button"
+          className="boton boton-suave"
+          aria-label={`Sumar una unidad de ${producto.nombre}`}
+          onClick={() => cambiarCantidad(producto, 1)}
+          disabled={cantidad >= producto.stock}
+        >
+          <Icono nombre="mas" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button type="button" className="boton" onClick={() => agregarProducto(producto)}>
+      <Icono nombre={icono} />
+      {etiqueta}
+    </button>
+  )
+}
+
+export default ControlCantidad
+===== FIN ARCHIVO: src/components/ControlCantidad.jsx =====
+
+===== INICIO ARCHIVO: src/components/Header.jsx =====
+import { Link } from 'react-router-dom'
+import { useCart } from '../context/CartContext'
+import { useAuth } from '../context/AuthContext'
+import Icono from './Icono'
+
+function Header() {
+  // Total de unidades del carrito (no de productos distintos)
+  const { items } = useCart()
+  const total = items.reduce((suma, i) => suma + i.cantidad, 0)
+
+  // Sesión: si hay usuario se muestra "Salir", si no "Cuenta"
+  const { usuario, cerrarSesion } = useAuth()
+
+  return (
+    <header className="header">
+      <Link to="/" className="header-marca">
+        <Icono nombre="hoja" />
+        Dietética Los Mirasoles
+      </Link>
+      <nav className="header-nav">
+        {usuario ? (
+          <button type="button" onClick={cerrarSesion}>
+            <Icono nombre="salir" />
+            Salir
+          </button>
+        ) : (
+          <Link to="/ingreso">
+            <Icono nombre="usuario" />
+            Cuenta
+          </Link>
+        )}
+        <Link to="/carrito" className="header-carrito">
+          <Icono nombre="carrito" />
+          Carrito
+          <span className="cuenta">{total}</span>
+        </Link>
+      </nav>
+    </header>
+  )
+}
+
+export default Header
+===== FIN ARCHIVO: src/components/Header.jsx =====
+
+===== INICIO ARCHIVO: src/components/Icono.jsx =====
+// Small line icons. Decorative: the visible label stays in the markup.
+function Icono({ nombre, tamano = 16 }) {
+  return (
+    <svg
+      className="icono"
+      width={tamano}
+      height={tamano}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {trazos(nombre)}
+    </svg>
+  )
+}
+
+function trazos(nombre) {
+  switch (nombre) {
+    case 'hoja':
+      return (
+        <>
+          <path d="M12 21V10" />
+          <path d="M12 15c-4.2-.2-7-2.4-8-6 4.2.4 7 2.6 8 6z" />
+          <path d="M12 13c4-.4 6.6-3 7.5-6.5-4 .5-6.6 3-7.5 6.5z" />
+        </>
+      )
+    case 'buscar':
+      return (
+        <>
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="M16 16.5 20 20.5" />
+        </>
+      )
+    case 'carrito':
+      return (
+        <>
+          <circle cx="9" cy="20" r="1.2" />
+          <circle cx="18" cy="20" r="1.2" />
+          <path d="M3 4h2l2.2 11h11.3l2-7H7" />
+        </>
+      )
+    case 'usuario':
+      return (
+        <>
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5.5 19.5c1.4-3 3.6-4.5 6.5-4.5s5.1 1.5 6.5 4.5" />
+        </>
+      )
+    case 'salir':
+      return (
+        <>
+          <path d="M10 7V5H5v14h5v-2" />
+          <path d="M10 12h9" />
+          <path d="M16 8.5 19.5 12 16 15.5" />
+        </>
+      )
+    case 'panel':
+      return (
+        <>
+          <rect x="4" y="4" width="7" height="7" rx="1.2" />
+          <rect x="13" y="4" width="7" height="7" rx="1.2" />
+          <rect x="4" y="13" width="7" height="7" rx="1.2" />
+          <rect x="13" y="13" width="7" height="7" rx="1.2" />
+        </>
+      )
+    case 'mas':
+      return (
+        <>
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </>
+      )
+    case 'menos':
+      return <path d="M5 12h14" />
+    case 'check':
+      return <path d="M5 12.5 9.5 17 19 7" />
+    case 'local':
+      return (
+        <>
+          <path d="M4 10 12 4l8 6" />
+          <path d="M6 10.5V20h12v-9.5" />
+          <path d="M10 20v-6h4v6" />
+        </>
+      )
+    case 'envio':
+      return (
+        <>
+          <path d="M3 7h11v8H3z" />
+          <path d="M14 10h4l3 3v2h-7" />
+          <circle cx="7" cy="17.5" r="1.4" />
+          <circle cx="17" cy="17.5" r="1.4" />
+        </>
+      )
+    case 'sobre':
+      return (
+        <>
+          <rect x="3.5" y="6" width="17" height="12" rx="1.5" />
+          <path d="m4 7 8 6 8-6" />
+        </>
+      )
+    default:
+      return null
+  }
+}
+
+export default Icono
+===== FIN ARCHIVO: src/components/Icono.jsx =====
+
+===== INICIO ARCHIVO: src/components/MarcoImagen.jsx =====
+// Empty crosshatch when the product has no stored image, matching the wireframes.
+function MarcoImagen({ src, alt, variante }) {
+  const clase = `marco-imagen${variante ? ` marco-imagen-${variante}` : ''}`
+  if (!src) {
+    return (
+      <div className={`${clase} marco-imagen-vacia`} aria-hidden="true">
+        <span>imagen</span>
+      </div>
+    )
+  }
+  return <img className={clase} src={src} alt={alt} />
+}
+
+export default MarcoImagen
+===== FIN ARCHIVO: src/components/MarcoImagen.jsx =====
+
+===== INICIO ARCHIVO: src/components/PuertaAdmin.jsx =====
+import { Link, Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+
+// Server role checks live in RLS. This gate only decides which screen to show.
+function PuertaAdmin({ children }) {
+  const { usuario, perfil, perfilListo, cargando } = useAuth()
+  const ubicacion = useLocation()
+
+  if (cargando || (usuario && !perfilListo)) {
+    return <main className="pagina"><p>Cargando...</p></main>
+  }
+
+  if (!usuario) {
+    return <Navigate to="/ingreso" replace state={{ desde: ubicacion.pathname }} />
+  }
+
+  if (perfil?.rol !== 'administrador') {
+    return (
+      <main className="pagina">
+        <p>Esta pantalla es del administrador.</p>
+        <Link to="/">Volver al catálogo</Link>
+      </main>
+    )
+  }
+
+  return children
+}
+
+export default PuertaAdmin
+===== FIN ARCHIVO: src/components/PuertaAdmin.jsx =====
+
+===== INICIO ARCHIVO: src/context/AuthContext.jsx =====
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { supabase } from '../lib/supabase'
+
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
+  const [usuario, setUsuario] = useState(null)
+  const [perfil, setPerfil] = useState(null)
+  const [perfilListo, setPerfilListo] = useState(false)
+  const [cargando, setCargando] = useState(true)
+  const lectura = useRef(0)
+  const usuarioVisto = useRef(undefined)
+
+  async function leerPerfil(user) {
+    const actual = ++lectura.current
+    const id = user?.id ?? null
+    const mismoUsuario = usuarioVisto.current === id
+    usuarioVisto.current = id
+    if (!user) {
+      if (actual !== lectura.current) return
+      setPerfil(null)
+      setPerfilListo(true)
+      return
+    }
+    // Only blank the role when the account changes. A token refresh
+    // must not unmount the panel while the same profile is loading again.
+    if (!mismoUsuario) setPerfilListo(false)
+    const { data } = await supabase
+      .from('perfiles')
+      .select('nombre, rol')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (actual !== lectura.current) return
+    setPerfil(data)
+    setPerfilListo(true)
+  }
+
+  useEffect(() => {
+    let vigente = true
+
+    // Stay on "loading" until the role is known, so the panel does not
+    // redirect an administrator before the profile arrives.
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user ?? null
+      if (!vigente) return
+      setUsuario(user)
+      await leerPerfil(user)
+      if (vigente) setCargando(false)
+    })
+
+    const { data } = supabase.auth.onAuthStateChange((_evento, sesion) => {
+      const user = sesion?.user ?? null
+      setUsuario(user)
+      leerPerfil(user)
+    })
+
+    return () => {
+      vigente = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
+
+  // Cierra la sesión en Supabase; el "timbre" de arriba pone usuario en null
+  async function cerrarSesion() {
+    await supabase.auth.signOut()
+  }
+
+  return (
+    <AuthContext.Provider value={{ usuario, perfil, perfilListo, cargando, cerrarSesion }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  return useContext(AuthContext)
+}
+===== FIN ARCHIVO: src/context/AuthContext.jsx =====
+
+===== INICIO ARCHIVO: src/context/CartContext.jsx =====
+import { createContext, useContext, useState} from 'react'
+
+const CartContext = createContext(null)
+
+export function CartProvider({ children }){
+    
+    const [items, setItems] = useState([])
+
+    function agregarProducto(producto){
+        const existe = items.find((i) => i.id === producto.id) 
+        if (existe){
+            // Math.min: la cantidad nunca pasa del stock
+            setItems(items.map((i) => (i.id === producto.id ? { ...i, cantidad: Math.min(i.cantidad + 1, i.stock) } : i)))
+        }else{
+            setItems([...items, { ...producto, cantidad: 1 }])
+        }
+    }
+
+    function quitarProducto(producto){
+        setItems(items.filter((i) => i.id !== producto.id))
+    }
+
+    // cambio es +1 o -1; si la cantidad llega a 0, el producto sale del carrito
+    // y nunca pasa del stock
+    function cambiarCantidad(producto, cambio){
+        setItems(
+            items
+                .map((i) => (i.id === producto.id ? { ...i, cantidad: Math.min(i.cantidad + cambio, i.stock) } : i))
+                .filter((i) => i.cantidad > 0)
+        )
+    }
+
+    function vaciarCarrito(){
+        setItems([])
+    }
+
+    // Suma de precio por cantidad de todos los productos
+    const subtotal = items.reduce((suma, i) => suma + i.precio * i.cantidad, 0)
+
+    return (
+    <CartContext.Provider value={{ items, subtotal, agregarProducto, quitarProducto, cambiarCantidad, vaciarCarrito }}>
+      {children}
+    </CartContext.Provider>
+  )
+}
+
+export function useCart() {
+  return useContext(CartContext) 
+}
+===== FIN ARCHIVO: src/context/CartContext.jsx =====
+
+===== INICIO ARCHIVO: src/index.css =====
+:root {
+  --ink: #163028;
+  --muted: #5d7268;
+  --line: #d3e4d8;
+  --soft: #e7f3ec;
+  --strong: #1f7a45;
+  --strong-hover: #186338;
+  --chip: #e3f3e8;
+  --fill: #f4faf6;
+  --image: #eef5f0;
+  --field: #b7cdc2;
+  --edge: #8aab96;
+  --page: #f3f8f5;
+  --white: #fff;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--page);
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.header,
+.admin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 16px;
+  min-height: 56px;
+  padding: 10px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--white);
+  box-sizing: border-box;
+}
+
+.admin-bar h1,
+.header-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--strong);
+  text-decoration: none;
+}
+
+.header-nav,
+.admin-bar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.header-nav a,
+.header-nav button,
+.admin-bar a,
+.admin-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.header-nav a:hover,
+.header-nav button:hover,
+.admin-bar a:hover,
+.admin-bar button:hover {
+  background: var(--soft);
+  border-color: var(--edge);
+}
+
+.header-nav a.header-carrito,
+.admin-bar .boton {
+  background: var(--strong);
+  border-color: var(--strong);
+  color: var(--white);
+}
+
+.header-nav a.header-carrito:hover,
+.admin-bar .boton:hover {
+  background: var(--strong-hover);
+  border-color: var(--strong-hover);
+}
+
+.cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pagina {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 28px 56px;
+  box-sizing: border-box;
+}
+
+.ceja,
+.etiqueta,
+.nota {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.etiqueta {
+  display: block;
+  margin: 0;
+}
+
+.ceja {
+  margin: 16px 0 8px;
+  color: var(--strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.titulo {
+  margin: 0 0 16px;
+  font-size: 26px;
+}
+
+.titulo-centro {
+  text-align: center;
+}
+
+.subtitulo {
+  margin: 24px 0 8px;
+  font-size: 18px;
+}
+
+.campo {
+  width: 100%;
+  max-width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid var(--field);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--white);
+  font-size: 14px;
+  line-height: 34px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.campo:focus {
+  outline: none;
+  border-color: var(--strong);
+  box-shadow: 0 0 0 3px rgba(31, 122, 69, 0.16);
+}
+
+.campo-invalido {
+  border-color: var(--ink);
+}
+
+.tabla-estado {
+  display: grid;
+  gap: 4px;
+}
+
+.tabla-estado .nota {
+  margin: 0;
+}
+
+.boton,
+.boton-suave {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--strong);
+  border-radius: 8px;
+  background: var(--strong);
+  color: var(--white);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--strong-hover);
+  border-color: var(--strong-hover);
+  box-shadow: 0 4px 12px rgba(22, 48, 40, 0.12);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.boton-suave {
+  background: var(--white);
+  color: var(--strong);
+  border-color: var(--edge);
+}
+
+.boton-suave:hover:not(:disabled) {
+  background: var(--soft);
+  border-color: var(--strong);
+  box-shadow: none;
+}
+
+.boton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.enlace {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+.chip {
+  align-self: flex-start;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--white);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.chip[aria-pressed='true'],
+.chip-activo {
+  background: var(--strong);
+  border-color: var(--strong);
+  color: var(--white);
+}
+
+.chip-aviso {
+  background: var(--white);
+  color: var(--muted);
+  cursor: default;
+}
+
+.chip-fijo {
+  cursor: default;
+}
+
+.chips-chicos {
+  margin: 0;
+}
+
+.filtros,
+.check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+}
+
+.filtros {
+  margin: 16px 0;
+}
+
+.check {
+  gap: 8px;
+}
+
+.catalogo-tope {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px 16px;
+  align-items: start;
+  margin: 0 0 14px;
+}
+
+.catalogo-tope .chips {
+  margin: 0;
+}
+
+.buscar {
+  position: relative;
+  display: block;
+}
+
+.buscar .icono {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  color: var(--muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.campo-buscar {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  padding: 0 14px 0 34px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 30px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sello {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--chip);
+  color: var(--strong);
+  animation: aparecer 280ms ease;
+}
+
+.icono {
+  display: block;
+  flex: none;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.campo-buscar::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.grilla {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.tarjeta:hover {
+  border-color: #b7d4c2;
+  box-shadow: 0 8px 20px rgba(22, 48, 40, 0.08);
+}
+
+.tarjeta .boton,
+.tarjeta .chip-aviso,
+.tarjeta .cantidad {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.tarjeta-nombre {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tarjeta-nombre a {
+  text-decoration: none;
+}
+
+.precio {
+  margin: 0;
+  color: var(--strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.precio-grande {
+  font-size: 26px;
+}
+
+.marco-imagen {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--image);
+  color: var(--muted);
+}
+
+.marco-imagen-vacia {
+  background:
+    linear-gradient(to top right, transparent calc(50% - 0.5px), #b7cdc2, transparent calc(50% + 0.5px)),
+    linear-gradient(to top left, transparent calc(50% - 0.5px), #b7cdc2, transparent calc(50% + 0.5px)),
+    var(--image);
+}
+
+.marco-imagen-alta {
+  aspect-ratio: 520 / 480;
+}
+
+.marco-imagen-mini,
+.marco-imagen-mini-ancha {
+  width: 64px;
+  height: 64px;
+  aspect-ratio: 1;
+}
+
+.marco-imagen-mini-ancha {
+  width: 160px;
+  height: 80px;
+}
+
+.ficha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.ficha-info {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.ficha-info > * {
+  margin: 0;
+}
+
+.ficha-precio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.caja {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--fill);
+}
+
+.disponible {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--strong);
+  font-weight: 700;
+}
+
+.disponible-no {
+  color: var(--muted);
+}
+
+.carrito-tabla {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.carrito-encabezado {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.carrito-encabezado:first-child {
+  grid-column: 1 / 3;
+}
+
+.carrito-fila {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+.cantidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cantidad .boton {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+.carrito-cierre {
+  display: grid;
+  justify-items: end;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.carrito-aviso {
+  margin: 0;
+  text-align: right;
+}
+
+.carrito-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.ingreso-paneles,
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.pago {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  padding: 28px;
+  box-shadow: 0 1px 2px rgba(22, 48, 40, 0.04);
+}
+
+.panel > .titulo,
+.panel > .nota,
+.formulario > .nota,
+.formulario > .etiqueta {
+  margin: 0;
+}
+
+.formulario {
+  display: grid;
+  gap: 18px;
+}
+
+.form-grid > div,
+.dos > div,
+.form-pie > div:not(.filtros) {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dos,
+.linea-cp,
+.form-pie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+
+.dos > div,
+.linea-cp .campo {
+  flex: 1 1 180px;
+}
+
+.resumen,
+.confirmacion {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(22, 48, 40, 0.04);
+}
+
+.confirmacion {
+  max-width: 720px;
+  margin: 24px auto;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.confirmacion > * {
+  margin: 0;
+}
+
+.resumen ul,
+.confirmacion-lineas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.resumen li,
+.resumen-linea,
+.resumen-total,
+.confirmacion-lineas li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.resumen-total {
+  font-weight: 700;
+  width: 100%;
+}
+
+.estado {
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--chip);
+  color: var(--strong);
+}
+
+.admin-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-filtros label {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 140px;
+}
+
+.admin-buscar {
+  flex: 2 1 220px;
+}
+
+.tabla {
+  display: grid;
+  gap: 0;
+}
+
+/* Shared tracks so the header labels sit on the same columns as the inputs.
+   The last track is the row actions; an empty header cell still occupies it. */
+.tabla-productos {
+  grid-template-columns: minmax(0, 1fr) 9rem 6rem max-content;
+}
+
+.tabla-cabeza,
+.tabla-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 140px 80px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--white);
+}
+
+.tabla-productos > .tabla-cabeza,
+.tabla-productos > .tabla-fila {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+.tabla-cabeza {
+  background: var(--fill);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tabla-pedidos {
+  grid-template-columns: 80px 120px minmax(0, 1fr) 100px 120px minmax(160px, 220px);
+}
+
+.tabla-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .grilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .ficha,
+  .ingreso-paneles,
+  .pago,
+  .form-grid,
+  .carrito-tabla,
+  .tabla,
+  .tabla-productos,
+  .tabla-cabeza,
+  .tabla-fila,
+  .tabla-pedidos,
+  .tabla-productos > .tabla-cabeza,
+  .tabla-productos > .tabla-fila {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+
+  .carrito-encabezado {
+    display: none;
+  }
+
+  .carrito-fila {
+    grid-template-columns: 64px minmax(0, 1fr);
+    border: 1px solid var(--line);
+    padding: 12px;
+  }
+
+  .carrito-cierre,
+  .carrito-acciones {
+    justify-items: stretch;
+    justify-content: stretch;
+  }
+
+  .carrito-acciones .boton,
+  .formulario > .boton,
+  .panel > .boton,
+  .confirmacion .boton {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .cantidad .boton {
+    width: 36px;
+  }
+
+  .tabla-cabeza {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .header,
+  .admin-bar,
+  .pagina {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .catalogo-tope {
+    grid-template-columns: 1fr;
+  }
+
+  .campo-buscar {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .grilla {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+  }
+}
+===== FIN ARCHIVO: src/index.css =====
+
+===== INICIO ARCHIVO: src/lib/presentacion.js =====
+// Labels and money formatting shared by the wireframe screens.
+
+export function etiquetasDe(producto) {
+  const etiquetas = []
+  if (producto.sin_tacc) etiquetas.push('Sin TACC')
+  if (producto.vegano) etiquetas.push('Vegano')
+  if (producto.sin_lactosa) etiquetas.push('Sin lactosa')
+  return etiquetas
+}
+
+export function pesos(valor) {
+  return `$ ${Number(valor).toLocaleString('es-AR')}`
+}
+===== FIN ARCHIVO: src/lib/presentacion.js =====
+
+===== INICIO ARCHIVO: src/lib/supabase.js =====
+import { createClient } from '@supabase/supabase-js'
+
+// Variables de entorno (se definen en el archivo .env, ver .env.example)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// Aviso claro si falta alguna variable
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    'Faltan variables de entorno de Supabase: definí VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en el archivo .env (copiá .env.example).'
+  )
+}
+
+// Solo la anon key en el frontend, nunca la service role key.
+// Si faltan las variables usamos valores vacíos para que la app no se rompa al cargar.
+export const supabase = createClient(supabaseUrl || 'http://localhost', supabaseAnonKey || 'sin-clave')
+
+export const supabaseConfigurado = Boolean(supabaseUrl && supabaseAnonKey)
+
+// Public URL for a product image stored in the productos bucket.
+export function urlImagenProducto(path) {
+  if (!path) return null
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  const { data } = supabase.storage.from('productos').getPublicUrl(path)
+  return data?.publicUrl ?? null
+}
+===== FIN ARCHIVO: src/lib/supabase.js =====
+
+===== INICIO ARCHIVO: src/main.jsx =====
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import './index.css'
+import { AuthProvider } from './context/AuthContext.jsx'
+import { CartProvider } from './context/CartContext.jsx'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <CartProvider>
+          <App />
+        </CartProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </StrictMode>,
+)
+===== FIN ARCHIVO: src/main.jsx =====
+
+===== INICIO ARCHIVO: src/pages/admin/Pedidos.jsx =====
+import { useEffect, useState } from 'react'
+import AdminBar from '../../components/AdminBar'
+import PuertaAdmin from '../../components/PuertaAdmin'
+import { pesos } from '../../lib/presentacion'
+import { supabase } from '../../lib/supabase'
+
+const ESTADOS = [
+  ['', 'Todos'],
+  ['pendiente_confirmacion', 'Pendiente de confirmación'],
+  ['recibido', 'Recibido'],
+  ['en_preparacion', 'En preparación'],
+  ['listo_retiro', 'Listo para retiro'],
+  ['despachado', 'Despachado'],
+  ['entregado', 'Entregado'],
+  ['cancelado', 'Cancelado'],
+]
+
+const CON_STOCK = new Set(['en_preparacion', 'listo_retiro', 'despachado', 'entregado'])
+
+function etiquetaEstado(valor) {
+  return ESTADOS.find(([clave]) => clave === valor)?.[1] ?? valor
+}
+
+function fechaLocal(valor) {
+  if (!valor) return ''
+  return new Date(valor).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function ultimaMarca(pedido) {
+  const marcas = pedido.pedido_cambios ?? []
+  return marcas.reduce((max, marca) => (marca.en > max ? marca.en : max), '')
+}
+
+// Retiro and shipping share one cycle step, with a different label.
+function opcionesDe(pedido) {
+  return ESTADOS.filter(([valor]) => {
+    if (!valor) return false
+    if (valor === 'listo_retiro') return pedido.modalidad === 'retiro' || pedido.estado === valor
+    if (valor === 'despachado') return pedido.modalidad === 'envio' || pedido.estado === valor
+    return true
+  })
+}
+
+function textoDeCambio(anterior, siguiente) {
+  const tenia = CON_STOCK.has(anterior)
+  const pide = CON_STOCK.has(siguiente)
+  if (!tenia && pide) return 'Estado actualizado. Se descontó el stock.'
+  if (tenia && !pide) return 'Estado actualizado. El stock volvió al catálogo.'
+  return 'Estado actualizado.'
+}
+
+function PedidosAdmin() {
+  const [pedidos, setPedidos] = useState([])
+  const [estado, setEstado] = useState('')
+  const [entrega, setEntrega] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
+  const [buscar, setBuscar] = useState('')
+  const [mensaje, setMensaje] = useState('')
+  const [guardando, setGuardando] = useState(null)
+
+  useEffect(() => {
+    cargar()
+  }, [])
+
+  async function cargar() {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('*, pedido_cambios(en)')
+      .order('id', { ascending: false })
+    if (error) {
+      setMensaje('No se pudieron cargar los pedidos.')
+      return
+    }
+    setPedidos(data ?? [])
+  }
+
+  async function cambiarEstado(pedido, siguiente) {
+    if (siguiente === pedido.estado) return
+    setGuardando(pedido.id)
+    setMensaje('')
+    const { error } = await supabase.from('pedidos').update({ estado: siguiente }).eq('id', pedido.id)
+    setGuardando(null)
+    if (error) {
+      const texto = error.message || ''
+      if (error.code === 'P0001' && texto) {
+        setMensaje(texto.endsWith('.') ? texto : `${texto}.`)
+      } else {
+        setMensaje('No se pudo cambiar el estado.')
+      }
+      return
+    }
+    setMensaje(textoDeCambio(pedido.estado, siguiente))
+    await cargar()
+  }
+
+  const texto = buscar.trim().toLowerCase()
+  const visibles = pedidos.filter((pedido) => {
+    const fecha = (pedido.creado_en ?? '').slice(0, 10)
+    const coincideTexto = !texto
+      || String(pedido.id).includes(texto)
+      || (pedido.nombre ?? '').toLowerCase().includes(texto)
+    return (
+      coincideTexto &&
+      (!estado || pedido.estado === estado) &&
+      (!entrega || pedido.modalidad === entrega) &&
+      (!desde || fecha >= desde) &&
+      (!hasta || fecha <= hasta)
+    )
+  })
+
+  return (
+    <>
+      <AdminBar titulo="Pedidos" />
+      <main className="pagina">
+        {mensaje && <p className="nota" role="alert">{mensaje}</p>}
+        <div className="admin-filtros">
+          <label>
+            <span className="etiqueta">Estado</span>
+            <select className="campo" value={estado} onChange={(e) => setEstado(e.target.value)}>
+              {ESTADOS.map(([valor, nombre]) => (
+                <option key={valor || 'todos'} value={valor}>{nombre}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="etiqueta">Entrega</span>
+            <select className="campo" value={entrega} onChange={(e) => setEntrega(e.target.value)}>
+              <option value="">Todas</option>
+              <option value="retiro">Retiro</option>
+              <option value="envio">Envío</option>
+            </select>
+          </label>
+          <label>
+            <span className="etiqueta">Desde</span>
+            <input className="campo" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          </label>
+          <label>
+            <span className="etiqueta">Hasta</span>
+            <input className="campo" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          </label>
+          <label className="admin-buscar">
+            <span className="etiqueta">Buscar</span>
+            <input
+              className="campo"
+              value={buscar}
+              placeholder="Nº de pedido o cliente"
+              onChange={(e) => setBuscar(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="tabla">
+          <div className="tabla-cabeza tabla-pedidos">
+            <span>#</span>
+            <span>Fecha</span>
+            <span>Cliente</span>
+            <span>Entrega</span>
+            <span>Total</span>
+            <span>Estado</span>
+          </div>
+          {visibles.length === 0 && <p className="nota">No hay pedidos para ese filtro.</p>}
+          {visibles.map((pedido) => (
+            <div key={pedido.id} className="tabla-fila tabla-pedidos">
+              <span>{pedido.id}</span>
+              <span>{pedido.creado_en ? new Date(pedido.creado_en).toLocaleDateString('es-AR') : ''}</span>
+              <span>{pedido.nombre}</span>
+              <span>{pedido.modalidad === 'envio' ? 'Envío' : 'Retiro'}</span>
+              <span>{pesos(pedido.total)}</span>
+              <div className="tabla-estado">
+                <select
+                  className="campo"
+                  value={pedido.estado}
+                  aria-label={`Estado del pedido ${pedido.id}`}
+                  disabled={guardando === pedido.id}
+                  onChange={(e) => cambiarEstado(pedido, e.target.value)}
+                >
+                  {opcionesDe(pedido).map(([valor, nombre]) => (
+                    <option key={valor} value={valor}>{nombre}</option>
+                  ))}
+                  {!ESTADOS.some(([valor]) => valor === pedido.estado) && (
+                    <option value={pedido.estado}>{etiquetaEstado(pedido.estado)}</option>
+                  )}
+                </select>
+                <p className="nota">Desde {fechaLocal(ultimaMarca(pedido) || pedido.creado_en)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="nota">
+          Mismo paso del ciclo: «Listo para retiro» si retira, «Despachado» si es envío.
+        </p>
+      </main>
+    </>
+  )
+}
+
+function PedidosAdminPuerta() {
+  return (
+    <PuertaAdmin>
+      <PedidosAdmin />
+    </PuertaAdmin>
+  )
+}
+
+export default PedidosAdminPuerta
+===== FIN ARCHIVO: src/pages/admin/Pedidos.jsx =====
+
+===== INICIO ARCHIVO: src/pages/admin/Productos.jsx =====
+import { useEffect, useRef, useState } from 'react'
+import AdminBar from '../../components/AdminBar'
+import Icono from '../../components/Icono'
+import MarcoImagen from '../../components/MarcoImagen'
+import PuertaAdmin from '../../components/PuertaAdmin'
+import { supabase, urlImagenProducto } from '../../lib/supabase'
+
+const VACIO = {
+  id: null,
+  categoria_id: '',
+  nombre: '',
+  descripcion: '',
+  precio: '',
+  unidad_venta: '',
+  stock: '',
+  info_nutricional: '',
+  sin_tacc: false,
+  vegano: false,
+  sin_lactosa: false,
+  imagen_path: null,
+}
+
+// Shop-counter wording. The database errors stay off this screen.
+function validarProducto(formulario) {
+  const errores = {}
+  if (!formulario.nombre.trim()) errores.nombre = 'Indicá el nombre.'
+
+  const precioTexto = String(formulario.precio).trim().replace(',', '.')
+  const precio = Number(precioTexto)
+  if (!precioTexto || Number.isNaN(precio)) errores.precio = 'Indicá el precio.'
+  else if (precio <= 0) errores.precio = 'El precio tiene que ser mayor a cero.'
+
+  const stockTexto = String(formulario.stock).trim()
+  const stock = Number(stockTexto)
+  if (!stockTexto || !Number.isInteger(stock) || stock < 0) {
+    errores.stock = 'Indicá el stock en unidades enteras, desde cero.'
+  }
+
+  if (!formulario.categoria_id) errores.categoria_id = 'Elegí una categoría.'
+
+  return { errores, precio, stock }
+}
+
+function mensajeDeBase(error, fallback) {
+  if (!error) return ''
+  if (error.code === '23503') return 'No se puede eliminar: figura en un pedido.'
+  return fallback
+}
+
+function ProductosAdmin() {
+  const [productos, setProductos] = useState([])
+  const [categorias, setCategorias] = useState([])
+  const [formulario, setFormulario] = useState(VACIO)
+  const [archivo, setArchivo] = useState(null)
+  const imagenRef = useRef(null)
+  const [vistaPrevia, setVistaPrevia] = useState(null)
+  const [errores, setErrores] = useState({})
+  const [mensaje, setMensaje] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [fila, setFila] = useState(null)
+
+  useEffect(() => {
+    cargar()
+  }, [])
+
+  useEffect(() => {
+    if (!archivo) {
+      setVistaPrevia(null)
+      return undefined
+    }
+    const url = URL.createObjectURL(archivo)
+    setVistaPrevia(url)
+    return () => URL.revokeObjectURL(url)
+  }, [archivo])
+
+  async function cargar() {
+    const [resProductos, resCategorias] = await Promise.all([
+      supabase.from('productos').select('*').order('nombre'),
+      supabase.from('categorias').select('id, nombre').order('nombre'),
+    ])
+    if (resProductos.error || resCategorias.error) {
+      setMensaje('No se pudo cargar el panel.')
+      return
+    }
+    setProductos(resProductos.data ?? [])
+    setCategorias(resCategorias.data ?? [])
+  }
+
+  function editar(producto) {
+    setErrores({})
+    setMensaje('')
+    limpiarArchivo()
+    setFormulario({
+      id: producto.id,
+      categoria_id: producto.categoria_id ?? '',
+      nombre: producto.nombre ?? '',
+      descripcion: producto.descripcion ?? '',
+      precio: producto.precio ?? '',
+      unidad_venta: producto.unidad_venta ?? '',
+      stock: producto.stock ?? '',
+      info_nutricional: producto.info_nutricional ?? '',
+      sin_tacc: Boolean(producto.sin_tacc),
+      vegano: Boolean(producto.vegano),
+      sin_lactosa: Boolean(producto.sin_lactosa),
+      imagen_path: producto.imagen_path,
+    })
+  }
+
+  function limpiarArchivo() {
+    setArchivo(null)
+    if (imagenRef.current) imagenRef.current.value = ''
+  }
+
+  function nuevo() {
+    setFormulario(VACIO)
+    limpiarArchivo()
+    setErrores({})
+    setMensaje('')
+  }
+
+  function cambiar(campo, valor) {
+    setFormulario((actual) => ({ ...actual, [campo]: valor }))
+  }
+
+  async function subirImagen(id) {
+    const extension = (archivo.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${id}-${Date.now()}.${extension}`
+    const { error } = await supabase.storage.from('productos').upload(path, archivo, {
+      contentType: archivo.type || 'image/jpeg',
+      upsert: false,
+    })
+    if (error) return { error }
+    const { error: errorRuta } = await supabase.from('productos').update({ imagen_path: path }).eq('id', id)
+    return { error: errorRuta, path }
+  }
+
+  async function guardar(e) {
+    e.preventDefault()
+    const { errores: hallados, precio, stock } = validarProducto(formulario)
+    setErrores(hallados)
+    if (Object.keys(hallados).length > 0) {
+      setMensaje('Revisá los datos antes de guardar.')
+      return
+    }
+
+    setGuardando(true)
+    setMensaje('')
+    const cuerpo = {
+      categoria_id: formulario.categoria_id,
+      nombre: formulario.nombre.trim(),
+      descripcion: formulario.descripcion.trim(),
+      precio,
+      unidad_venta: formulario.unidad_venta.trim() || 'unidad',
+      stock,
+      info_nutricional: formulario.info_nutricional.trim() || null,
+      sin_tacc: formulario.sin_tacc,
+      vegano: formulario.vegano,
+      sin_lactosa: formulario.sin_lactosa,
+    }
+
+    // A new row stays unpublished until the row action publishes it.
+    const consulta = formulario.id
+      ? supabase.from('productos').update(cuerpo).eq('id', formulario.id).select('id').single()
+      : supabase.from('productos').insert({ ...cuerpo, publicado: false }).select('id').single()
+
+    const { data, error } = await consulta
+    if (error || !data?.id) {
+      setGuardando(false)
+      setMensaje('No se pudo guardar el producto.')
+      return
+    }
+
+    if (archivo) {
+      const subida = await subirImagen(data.id)
+      if (subida.error) {
+        setGuardando(false)
+        setFormulario((actual) => ({ ...actual, id: data.id }))
+        setMensaje('El producto se guardó, pero la imagen no se subió.')
+        await cargar()
+        return
+      }
+      setFormulario((actual) => ({ ...actual, id: data.id, imagen_path: subida.path }))
+      limpiarArchivo()
+    } else {
+      setFormulario((actual) => ({ ...actual, id: data.id }))
+    }
+
+    await cargar()
+    setGuardando(false)
+    setMensaje('Producto guardado.')
+  }
+
+  async function publicar(producto) {
+    setFila(producto.id)
+    setMensaje('')
+    const { error } = await supabase
+      .from('productos')
+      .update({ publicado: !producto.publicado })
+      .eq('id', producto.id)
+    setFila(null)
+    if (error) {
+      setMensaje('No se pudo cambiar la publicación.')
+      return
+    }
+    await cargar()
+  }
+
+  async function guardarFila(producto) {
+    const precioTexto = String(producto.precioFila).trim().replace(',', '.')
+    const stockTexto = String(producto.stockFila).trim()
+    const precio = Number(precioTexto)
+    const stock = Number(stockTexto)
+    if (!precioTexto || Number.isNaN(precio) || precio <= 0) {
+      setMensaje(`Indicá un precio mayor a cero para ${producto.nombre}.`)
+      return
+    }
+    if (!stockTexto || !Number.isInteger(stock) || stock < 0) {
+      setMensaje(`Indicá un stock entero, desde cero, para ${producto.nombre}.`)
+      return
+    }
+    if (Number(producto.precio) === precio && Number(producto.stock) === stock) return
+
+    setFila(producto.id)
+    setMensaje('')
+    const { error } = await supabase.from('productos').update({ precio, stock }).eq('id', producto.id)
+    setFila(null)
+    if (error) {
+      setMensaje('No se pudo guardar el precio o el stock.')
+      return
+    }
+    if (formulario.id === producto.id) {
+      setFormulario((actual) => ({ ...actual, precio, stock }))
+    }
+    await cargar()
+    setMensaje('Precio y stock actualizados.')
+  }
+
+  async function eliminar() {
+    if (!formulario.id) return
+    if (!window.confirm('¿Eliminar este producto?')) return
+    setGuardando(true)
+    setMensaje('')
+    const { error } = await supabase.from('productos').delete().eq('id', formulario.id)
+    setGuardando(false)
+    const texto = mensajeDeBase(error, 'No se pudo eliminar el producto.')
+    if (error) {
+      setMensaje(texto)
+      return
+    }
+    nuevo()
+    await cargar()
+    setMensaje('Producto eliminado.')
+  }
+
+  return (
+    <>
+      <AdminBar
+        titulo="Productos"
+        accion={
+          <button type="button" className="boton" onClick={nuevo}>
+            <Icono nombre="mas" />
+            Nuevo
+          </button>
+        }
+      />
+      <main className="pagina">
+        {mensaje && <p className="nota" role="alert">{mensaje}</p>}
+        <div className="tabla tabla-productos">
+          <div className="tabla-cabeza">
+            <span>Nombre</span>
+            <span>Precio</span>
+            <span>Stock</span>
+            <span />
+          </div>
+          {productos.map((producto) => (
+            <FilaProducto
+              key={producto.id}
+              producto={producto}
+              ocupada={fila === producto.id || guardando}
+              onEditar={() => editar(producto)}
+              onPublicar={() => publicar(producto)}
+              onGuardar={guardarFila}
+            />
+          ))}
+        </div>
+
+        <h2 className="subtitulo">Alta y edición · un solo formulario</h2>
+        <form className="panel formulario" noValidate onSubmit={guardar}>
+          <div className="form-grid">
+            <Campo
+              id="nombre-producto"
+              etiqueta="Nombre"
+              valor={formulario.nombre}
+              error={errores.nombre}
+              onChange={(valor) => cambiar('nombre', valor)}
+            />
+            <Campo
+              id="descripcion-producto"
+              etiqueta="Descripción"
+              valor={formulario.descripcion}
+              onChange={(valor) => cambiar('descripcion', valor)}
+            />
+            <Campo
+              id="precio-producto"
+              etiqueta="Precio"
+              valor={formulario.precio}
+              error={errores.precio}
+              onChange={(valor) => cambiar('precio', valor)}
+            />
+            <Campo
+              id="unidad-producto"
+              etiqueta="Unidad de venta"
+              valor={formulario.unidad_venta}
+              onChange={(valor) => cambiar('unidad_venta', valor)}
+            />
+            <Campo
+              id="stock-producto"
+              etiqueta="Stock"
+              valor={formulario.stock}
+              error={errores.stock}
+              onChange={(valor) => cambiar('stock', valor)}
+            />
+            <div>
+              <label className="etiqueta" htmlFor="categoria-producto">Categoría</label>
+              <select
+                className={errores.categoria_id ? 'campo campo-invalido' : 'campo'}
+                id="categoria-producto"
+                value={formulario.categoria_id}
+                aria-invalid={Boolean(errores.categoria_id)}
+                onChange={(e) => cambiar('categoria_id', e.target.value)}
+              >
+                <option value="">Elegí una categoría</option>
+                {categorias.map((categoria) => (
+                  <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+                ))}
+              </select>
+              {errores.categoria_id && <p className="nota" role="alert">{errores.categoria_id}</p>}
+            </div>
+            <Campo
+              id="nutricion-producto"
+              etiqueta="Información nutricional"
+              valor={formulario.info_nutricional}
+              onChange={(valor) => cambiar('info_nutricional', valor)}
+            />
+          </div>
+          <div className="form-pie">
+            <div>
+              <label className="etiqueta" htmlFor="imagen-producto">Imagen</label>
+              <input
+                id="imagen-producto"
+                ref={imagenRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+              />
+              <MarcoImagen
+                variante="mini-ancha"
+                src={vistaPrevia || urlImagenProducto(formulario.imagen_path)}
+                alt=""
+              />
+            </div>
+            <div className="filtros">
+              <label className="check">
+                <input type="checkbox" checked={formulario.sin_tacc} onChange={(e) => cambiar('sin_tacc', e.target.checked)} />
+                Sin TACC
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={formulario.vegano} onChange={(e) => cambiar('vegano', e.target.checked)} />
+                Vegano
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={formulario.sin_lactosa} onChange={(e) => cambiar('sin_lactosa', e.target.checked)} />
+                Sin lactosa
+              </label>
+            </div>
+            <button className="boton" type="submit" disabled={guardando}>
+              {guardando ? 'Guardando...' : 'Guardar'}
+            </button>
+            {formulario.id && (
+              <button className="boton boton-suave" type="button" disabled={guardando} onClick={eliminar}>
+                Eliminar
+              </button>
+            )}
+          </div>
+        </form>
+      </main>
+    </>
+  )
+}
+
+function Campo({ id, etiqueta, valor, error, onChange }) {
+  return (
+    <div>
+      <label className="etiqueta" htmlFor={id}>{etiqueta}</label>
+      <input
+        className={error ? 'campo campo-invalido' : 'campo'}
+        id={id}
+        value={valor ?? ''}
+        aria-invalid={Boolean(error)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {error && <p className="nota" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+// Price and stock stay on the row so a restock does not open the full form.
+function FilaProducto({ producto, ocupada, onEditar, onPublicar, onGuardar }) {
+  const [precio, setPrecio] = useState(String(producto.precio ?? ''))
+  const [stock, setStock] = useState(String(producto.stock ?? ''))
+
+  useEffect(() => {
+    setPrecio(String(producto.precio ?? ''))
+    setStock(String(producto.stock ?? ''))
+  }, [producto.precio, producto.stock])
+
+  return (
+    <div className="tabla-fila">
+      <span>
+        {producto.nombre}
+        {!producto.publicado && <span className="nota"> · No publicado</span>}
+      </span>
+      <input
+        className="campo"
+        value={precio}
+        aria-label={`Precio de ${producto.nombre}`}
+        disabled={ocupada}
+        onChange={(e) => setPrecio(e.target.value)}
+      />
+      <input
+        className="campo"
+        value={stock}
+        aria-label={`Stock de ${producto.nombre}`}
+        disabled={ocupada}
+        onChange={(e) => setStock(e.target.value)}
+      />
+      <span className="tabla-acciones">
+        <button
+          type="button"
+          className="boton boton-suave"
+          disabled={ocupada}
+          onClick={() => onGuardar({ ...producto, precioFila: precio, stockFila: stock })}
+        >
+          Guardar
+        </button>
+        <button type="button" className="boton boton-suave" disabled={ocupada} onClick={onEditar}>
+          Editar
+        </button>
+        <button type="button" className="boton boton-suave" disabled={ocupada} onClick={onPublicar}>
+          {producto.publicado ? 'Despublicar' : 'Publicar'}
+        </button>
+      </span>
+    </div>
+  )
+}
+
+function ProductosAdminPuerta() {
+  return (
+    <PuertaAdmin>
+      <ProductosAdmin />
+    </PuertaAdmin>
+  )
+}
+
+export default ProductosAdminPuerta
+===== FIN ARCHIVO: src/pages/admin/Productos.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Carrito.jsx =====
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
+import { pesos } from '../lib/presentacion'
+import { urlImagenProducto } from '../lib/supabase'
+import MarcoImagen from '../components/MarcoImagen'
+import ControlCantidad from '../components/ControlCantidad'
+
+// Pantalla del carrito: lista de productos y botón para quitar cada uno
+function Carrito() {
+  const { items, subtotal, quitarProducto, vaciarCarrito } = useCart()
+  const { usuario } = useAuth()
+  const navegar = useNavigate()
+
+  // Checkout stays on this page until there is a session and at least one item.
+  function irAPagar() {
+    if (!usuario || items.length === 0) return
+    navegar('/pago')
+  }
+
+  return (
+    <main className="pagina carrito">
+      <p className="ceja">Carrito</p>
+      <h1 className="titulo">Carrito</h1>
+
+      {items.length === 0 ? (
+        <p>
+          Tu carrito está vacío. <Link to="/">Ver productos</Link>
+        </p>
+      ) : (
+        <>
+          <div className="carrito-tabla">
+            <p className="carrito-encabezado">Producto</p>
+            <p className="carrito-encabezado">Cantidad</p>
+            <p className="carrito-encabezado">Subtotal</p>
+            {items.map((item) => (
+              <div key={item.id} className="carrito-fila">
+                <MarcoImagen
+                  variante="mini"
+                  src={urlImagenProducto(item.imagen_path)}
+                  alt=""
+                />
+                <div>
+                  <p className="tarjeta-nombre">{item.nombre}</p>
+                  <button type="button" className="enlace" onClick={() => quitarProducto(item)}>
+                    Quitar
+                  </button>
+                </div>
+                <ControlCantidad producto={item} cantidad={item.cantidad} />
+                <p>{pesos(item.precio * item.cantidad)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="carrito-cierre">
+            <button type="button" className="enlace" onClick={vaciarCarrito}>
+              Vaciar carrito
+            </button>
+            <p>
+              <span className="nota">Subtotal</span>{' '}
+              <strong className="precio">{pesos(subtotal)}</strong>
+            </p>
+            {!usuario && (
+              <p className="nota carrito-aviso">Para seguir comprando tenés que ingresar.</p>
+            )}
+            <div className="carrito-acciones">
+              {usuario ? (
+                <Link to="/" className="boton boton-suave">Seguir comprando</Link>
+              ) : (
+                <Link to="/ingreso" state={{ desde: '/' }} className="boton boton-suave">
+                  Seguir comprando
+                </Link>
+              )}
+              {usuario && (
+                <button type="button" className="boton" onClick={irAPagar}>
+                  Ir a pagar
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </main>
+  )
+}
+
+export default Carrito
+===== FIN ARCHIVO: src/pages/Carrito.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Catalogo.jsx =====
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { supabase, urlImagenProducto } from '../lib/supabase'
+import { etiquetasDe, pesos } from '../lib/presentacion'
+import { useCart } from '../context/CartContext'
+import MarcoImagen from '../components/MarcoImagen'
+import Icono from '../components/Icono'
+import ControlCantidad from '../components/ControlCantidad'
+
+// Pasa a minúsculas y saca espacios y tildes, para que "organica" encuentre "Orgánica"
+function normalizar(texto) {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+const APTITUDES = [
+  { clave: 'sin_tacc', etiqueta: 'Sin TACC' },
+  { clave: 'vegano', etiqueta: 'Vegano' },
+  { clave: 'sin_lactosa', etiqueta: 'Sin lactosa' },
+]
+
+// Pantalla de inicio: trae los productos publicados de Supabase
+function Catalogo() {
+  const { items } = useCart()
+  const [productos, setProductos] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [mensajeError, setMensajeError] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+  const [categorias, setCategorias] = useState([])
+  const [categoriaElegida, setCategoriaElegida] = useState('')
+  const [aptitudes, setAptitudes] = useState({
+    sin_tacc: false,
+    vegano: false,
+    sin_lactosa: false,
+  })
+
+  // Una sola vez al abrir la pantalla: pide los productos y las categorías
+  useEffect(() => {
+    async function traerDatos() {
+      const resProductos = await supabase
+        .from('productos')
+        .select('*')
+        .eq('publicado', true)
+      const resCategorias = await supabase
+        .from('categorias')
+        .select('*')
+        .order('nombre')
+
+      if (resProductos.error || resCategorias.error) {
+        setMensajeError('No se pudieron cargar los productos')
+      } else {
+        setProductos(resProductos.data)
+        setCategorias(resCategorias.data)
+      }
+      setCargando(false)
+    }
+
+    traerDatos()
+  }, [])
+
+  if (cargando) {
+    return <main className="pagina"><p>Cargando...</p></main>
+  }
+
+  if (mensajeError) {
+    return <main className="pagina"><p role="alert">{mensajeError}</p></main>
+  }
+
+  // Cuántas unidades de ese producto ya hay en el carrito
+  function cantidadEnCarrito(id) {
+    const item = items.find((i) => i.id === id)
+    return item ? item.cantidad : 0
+  }
+
+  // Checked dietary flags all have to match. None checked means no extra filter.
+  const productosFiltrados = productos.filter(
+    (p) =>
+      normalizar(p.nombre).includes(normalizar(busqueda)) &&
+      (categoriaElegida === '' || p.categoria_id === categoriaElegida) &&
+      (!aptitudes.sin_tacc || p.sin_tacc) &&
+      (!aptitudes.vegano || p.vegano) &&
+      (!aptitudes.sin_lactosa || p.sin_lactosa)
+  )
+
+  return (
+    <main className="pagina catalogo">
+      <p className="ceja">Catálogo</p>
+      <div className="catalogo-tope">
+        <div className="chips">
+          <button
+            type="button"
+            className="chip"
+            aria-pressed={categoriaElegida === ''}
+            onClick={() => setCategoriaElegida('')}
+          >
+            Todas
+          </button>
+          {categorias.map((categoria) => (
+            <button
+              key={categoria.id}
+              type="button"
+              className="chip"
+              aria-pressed={categoriaElegida === categoria.id}
+              onClick={() => setCategoriaElegida(categoria.id)}
+            >
+              {categoria.nombre}
+            </button>
+          ))}
+        </div>
+        <label className="buscar">
+          <Icono nombre="buscar" />
+          <input
+            className="campo campo-buscar"
+            type="search"
+            placeholder="Buscar producto"
+            aria-label="Buscar producto"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="filtros">
+        {APTITUDES.map((aptitud) => (
+          <label key={aptitud.clave} className="check">
+            <input
+              type="checkbox"
+              checked={aptitudes[aptitud.clave]}
+              onChange={() =>
+                setAptitudes((prev) => ({ ...prev, [aptitud.clave]: !prev[aptitud.clave] }))
+              }
+            />
+            {aptitud.etiqueta}
+          </label>
+        ))}
+      </div>
+
+      {productosFiltrados.length === 0 && (
+        <p>No hay productos que coincidan con tu búsqueda.</p>
+      )}
+
+      <ul className="grilla">
+        {productosFiltrados.map((producto) => {
+          const etiquetas = etiquetasDe(producto)
+          const sinStock = producto.stock <= 0
+          return (
+            <li key={producto.id} className="tarjeta">
+              <Link to={`/producto/${producto.id}`} aria-label={producto.nombre}>
+                <MarcoImagen src={urlImagenProducto(producto.imagen_path)} alt="" />
+              </Link>
+              <h2 className="tarjeta-nombre">
+                <Link to={`/producto/${producto.id}`}>{producto.nombre}</Link>
+              </h2>
+              {etiquetas.length > 0 && (
+                <p className="chips chips-chicos">
+                  {etiquetas.map((etiqueta) => (
+                    <span key={etiqueta} className="chip chip-fijo">{etiqueta}</span>
+                  ))}
+                </p>
+              )}
+              <p className="precio">{pesos(producto.precio)}</p>
+              {sinStock ? (
+                <span className="chip chip-aviso">Sin stock</span>
+              ) : (
+                <ControlCantidad producto={producto} cantidad={cantidadEnCarrito(producto.id)} />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </main>
+  )
+}
+
+export default Catalogo
+===== FIN ARCHIVO: src/pages/Catalogo.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Confirmacion.jsx =====
+import { Link, useLocation } from 'react-router-dom'
+import Icono from '../components/Icono'
+import { pesos } from '../lib/presentacion'
+
+const ESTADOS = {
+  en_preparacion: 'En preparación',
+  pendiente_confirmacion: 'Pendiente de confirmación',
+}
+
+// Shows the order returned by confirmar-pedido. A reload has no order in memory.
+function Confirmacion() {
+  const pedido = useLocation().state
+
+  if (!pedido?.id) {
+    return (
+      <main className="pagina">
+        <p className="ceja">Confirmación</p>
+        <article className="confirmacion">
+          <span className="sello"><Icono nombre="sobre" tamano={22} /></span>
+          <h1 className="titulo titulo-centro">Todavía no hay un pedido confirmado</h1>
+          <Link to="/" className="boton">Volver al catálogo</Link>
+        </article>
+      </main>
+    )
+  }
+
+  const confirmado = pedido.estado === 'en_preparacion'
+  const envio = Number(pedido.costoEnvio) || 0
+
+  return (
+    <main className="pagina">
+      <p className="ceja">Confirmación</p>
+      <article className="confirmacion">
+        <span className="sello">
+          <Icono nombre="check" tamano={22} />
+        </span>
+        <h1 className="titulo titulo-centro">
+          {confirmado ? `Pedido #${pedido.id} confirmado` : `Pedido #${pedido.id} registrado`}
+        </h1>
+        <p className="estado">{ESTADOS[pedido.estado] ?? pedido.estado}</p>
+        <ul className="confirmacion-lineas">
+          {(pedido.items ?? []).map((item) => (
+            <li key={item.productoId}>
+              <span>{item.nombre} × {item.cantidad}</span>
+              <span>{pesos(Number(item.precioUnitario) * item.cantidad)}</span>
+            </li>
+          ))}
+          <li>
+            <span>{pedido.modalidad === 'retiro' ? 'Retiro en el local' : 'Envío'}</span>
+            <span>{pesos(envio)}</span>
+          </li>
+        </ul>
+        <p className="resumen-total">
+          <span>Total</span>
+          <span>{pesos(pedido.total)}</span>
+        </p>
+        {pedido.modalidad === 'retiro' && pedido.direccionLocal && (
+          <p className="nota">Retiro: {pedido.direccionLocal}.</p>
+        )}
+        <p className="nota">
+          {pedido.mail_ok
+            ? 'Se envió el comprobante al correo del pedido.'
+            : 'El pedido quedó registrado. El comprobante por correo no salió.'}
+        </p>
+        <Link to="/" className="boton">Volver al catálogo</Link>
+      </article>
+    </main>
+  )
+}
+
+export default Confirmacion
+===== FIN ARCHIVO: src/pages/Confirmacion.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Ficha.jsx =====
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { supabase, urlImagenProducto } from '../lib/supabase'
+import { etiquetasDe, pesos } from '../lib/presentacion'
+import { useCart } from '../context/CartContext'
+import MarcoImagen from '../components/MarcoImagen'
+import Icono from '../components/Icono'
+import ControlCantidad from '../components/ControlCantidad'
+
+function Ficha() {
+  const { id } = useParams()
+  const { items } = useCart()
+  const [producto, setProducto] = useState(null)
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    let vigente = true
+    supabase
+      .from('productos')
+      .select('*')
+      .eq('id', id)
+      .eq('publicado', true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (vigente) {
+          setProducto(data)
+          setCargando(false)
+        }
+      })
+    return () => {
+      vigente = false
+    }
+  }, [id])
+
+  if (cargando) {
+    return <main className="pagina"><p>Cargando...</p></main>
+  }
+
+  if (!producto) {
+    return (
+      <main className="pagina">
+        <p className="ceja">Ficha de producto</p>
+        <p>Ese producto no está publicado.</p>
+        <Link to="/">Volver al catálogo</Link>
+      </main>
+    )
+  }
+
+  const enCarrito = items.find((item) => item.id === producto.id)?.cantidad ?? 0
+  const sinStock = producto.stock <= 0
+  const etiquetas = etiquetasDe(producto)
+
+  return (
+    <main className="pagina">
+      <p className="ceja">Ficha de producto</p>
+      <p><Link to="/">← Volver al catálogo</Link></p>
+      <article className="ficha">
+        <MarcoImagen
+          variante="alta"
+          src={urlImagenProducto(producto.imagen_path)}
+          alt={producto.nombre}
+        />
+        <div className="ficha-info">
+          <h1 className="titulo">{producto.nombre}</h1>
+          {etiquetas.length > 0 && (
+            <p className="chips">
+              {etiquetas.map((etiqueta) => (
+                <span key={etiqueta} className="chip chip-fijo">{etiqueta}</span>
+              ))}
+            </p>
+          )}
+          <p className="ficha-precio">
+            <span className="precio precio-grande">{pesos(producto.precio)}</span>
+            <span className="nota">unidad: {producto.unidad_venta}</span>
+          </p>
+          {producto.descripcion && (
+            <>
+              <p className="etiqueta">Descripción</p>
+              <p>{producto.descripcion}</p>
+            </>
+          )}
+          {producto.info_nutricional && (
+            <>
+              <p className="etiqueta">Información nutricional</p>
+              <p className="caja">{producto.info_nutricional}</p>
+            </>
+          )}
+          <p className={sinStock ? 'disponible disponible-no' : 'disponible'}>
+            <Icono nombre={sinStock ? 'menos' : 'check'} />
+            {sinStock ? 'No disponible' : 'Disponible'}
+          </p>
+          {!sinStock && (
+            <ControlCantidad
+              producto={producto}
+              cantidad={enCarrito}
+              etiqueta="Agregar al carrito"
+              icono="carrito"
+            />
+          )}
+        </div>
+      </article>
+    </main>
+  )
+}
+
+export default Ficha
+===== FIN ARCHIVO: src/pages/Ficha.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Ingreso.jsx =====
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+
+function mensajeDeAlta(error, data) {
+  const correoRepetido = /already registered/i.test(error?.message ?? '')
+    || error?.code === 'user_already_exists'
+  const altaDeshabilitada = error?.code === 'email_provider_disabled'
+    || /signups are disabled/i.test(error?.message ?? '')
+  const yaExiste = correoRepetido || (!error && data?.user && (data.user.identities?.length ?? 0) === 0)
+  if (!error && !yaExiste) return ''
+  if (yaExiste) return 'Ese correo ya está registrado.'
+  if (altaDeshabilitada) return 'El alta por correo está deshabilitada en el proyecto.'
+  return 'No se pudo crear la cuenta'
+}
+
+// Only in-app paths. Anything else falls back to the catalog.
+function destinoDe(desde) {
+  if (typeof desde !== 'string' || !desde.startsWith('/') || desde.startsWith('//')) return '/'
+  return desde
+}
+
+function Ingreso() {
+  const navegar = useNavigate()
+  const destino = destinoDe(useLocation().state?.desde)
+  const [nombre, setNombre] = useState('')
+  const [correoAlta, setCorreoAlta] = useState('')
+  const [contraseniaAlta, setContraseniaAlta] = useState('')
+  const [correo, setCorreo] = useState('')
+  const [contrasenia, setContrasenia] = useState('')
+  const [errorAlta, setErrorAlta] = useState('')
+  const [errorIngreso, setErrorIngreso] = useState('')
+
+  async function entrar(e) {
+    e.preventDefault()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: correo,
+      password: contrasenia,
+    })
+    setErrorIngreso(error ? 'Correo o contraseña incorrectos' : '')
+    if (error) return
+    const { data: fila } = await supabase
+      .from('perfiles')
+      .select('rol')
+      .eq('id', data.user.id)
+      .maybeSingle()
+    // The administrator stays in the panel. The store is the customer's side.
+    if (fila?.rol === 'administrador') {
+      const panel = destino.startsWith('/admin') ? destino : '/admin/pedidos'
+      navegar(panel, { replace: true })
+      return
+    }
+    navegar(destino)
+  }
+
+  async function crearCuenta(e) {
+    e.preventDefault()
+    const { data, error } = await supabase.auth.signUp({
+      email: correoAlta,
+      password: contraseniaAlta,
+      options: { data: { nombre: nombre.trim() } },
+    })
+    const mensaje = mensajeDeAlta(error, data)
+    setErrorAlta(mensaje)
+    if (!mensaje) navegar(destino)
+  }
+
+  return (
+    <main className="pagina">
+      <p className="ceja">Cuenta</p>
+      <div className="ingreso-paneles">
+        <form className="panel" onSubmit={entrar}>
+          <h1 className="titulo">Ingresar</h1>
+          <label className="etiqueta" htmlFor="correo">Correo</label>
+          <input
+            className="campo"
+            id="correo"
+            type="email"
+            placeholder="correo@ejemplo.com"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            required
+          />
+          <label className="etiqueta" htmlFor="contrasenia">Contraseña</label>
+          <input
+            className="campo"
+            id="contrasenia"
+            type="password"
+            placeholder="••••••••"
+            value={contrasenia}
+            onChange={(e) => setContrasenia(e.target.value)}
+            required
+          />
+          {errorIngreso && <p role="alert">{errorIngreso}</p>}
+          <button className="boton" type="submit">Entrar</button>
+          <p className="nota">¿No tenés cuenta? Usá el panel de al lado.</p>
+        </form>
+
+        <form className="panel" onSubmit={crearCuenta}>
+          <h1 className="titulo">Crear cuenta</h1>
+          <label className="etiqueta" htmlFor="nombre">Nombre</label>
+          <input
+            className="campo"
+            id="nombre"
+            type="text"
+            placeholder="Nombre y apellido"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            required
+          />
+          <label className="etiqueta" htmlFor="correo-alta">Correo</label>
+          <input
+            className="campo"
+            id="correo-alta"
+            type="email"
+            placeholder="correo@ejemplo.com"
+            value={correoAlta}
+            onChange={(e) => setCorreoAlta(e.target.value)}
+            required
+          />
+          <label className="etiqueta" htmlFor="contrasenia-alta">Contraseña</label>
+          <input
+            className="campo"
+            id="contrasenia-alta"
+            type="password"
+            placeholder="••••••••"
+            value={contraseniaAlta}
+            onChange={(e) => setContraseniaAlta(e.target.value)}
+            required
+          />
+          {errorAlta && <p role="alert">{errorAlta}</p>}
+          <button className="boton" type="submit">Registrarme</button>
+          <p className="nota">Un correo ya registrado no crea la cuenta.</p>
+        </form>
+      </div>
+    </main>
+  )
+}
+
+export default Ingreso
+===== FIN ARCHIVO: src/pages/Ingreso.jsx =====
+
+===== INICIO ARCHIVO: src/pages/Pago.jsx =====
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import Icono from '../components/Icono'
+import { pesos } from '../lib/presentacion'
+import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
+
+function Resumen({ items, envio, total }) {
+  return (
+    <aside className="resumen">
+      <h2>Resumen</h2>
+      {items.length === 0 && <p className="nota">El carrito está vacío.</p>}
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            <span>{item.nombre} × {item.cantidad}</span>
+            <span>{pesos(item.precio * item.cantidad)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="resumen-linea">
+        <span className="nota">Envío</span>
+        <span>{pesos(envio)}</span>
+      </p>
+      <p className="resumen-total">
+        <span>Total</span>
+        <span>{pesos(total)}</span>
+      </p>
+    </aside>
+  )
+}
+
+// Same lookup the checkout function uses. An unknown postal code stays at zero.
+async function costoDeZona(codigo) {
+  const { data, error } = await supabase
+    .from('zonas_cobertura')
+    .select('costo_envio')
+    .eq('codigo_postal', codigo.trim())
+    .maybeSingle()
+  if (error) return null
+  return data ? Number(data.costo_envio) : 0
+}
+
+// Reads the function error body. Stock conflicts name the product; other failures use the server text.
+async function mensajeDeConfirmacion(error) {
+  const respuesta = error?.context
+  if (!respuesta || typeof respuesta.json !== 'function') {
+    return 'No se pudo confirmar el pedido.'
+  }
+  try {
+    const cuerpo = await respuesta.json()
+    if (cuerpo?.producto) return `No alcanza el stock de ${cuerpo.producto}.`
+    if (typeof cuerpo?.error === 'string' && cuerpo.error) return cuerpo.error
+  } catch {
+    // The function did not return JSON.
+  }
+  return 'No se pudo confirmar el pedido.'
+}
+
+// Two checkout steps. Confirm sends the cart to confirmar-pedido; prices and stock are decided there.
+function Pago() {
+  const { items, subtotal, vaciarCarrito } = useCart()
+  const { usuario, perfil } = useAuth()
+  const navegar = useNavigate()
+  const [paso, setPaso] = useState(1)
+  const [modalidad, setModalidad] = useState('envio')
+  const [domicilio, setDomicilio] = useState('')
+  const [codigoPostal, setCodigoPostal] = useState('')
+  const [nombre, setNombre] = useState(perfil?.nombre ?? '')
+  const [telefono, setTelefono] = useState('')
+  const [correo, setCorreo] = useState(usuario?.email ?? '')
+  const [costoEnvio, setCostoEnvio] = useState(0)
+  const [zonaConsultada, setZonaConsultada] = useState(false)
+  const [resultado, setResultado] = useState('aprobado')
+  const [enviando, setEnviando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+
+  const envio = modalidad === 'envio' ? costoEnvio : 0
+
+  // Auth can arrive after the first render. Fill only fields the user has not typed.
+  useEffect(() => {
+    if (!nombre && perfil?.nombre) setNombre(perfil.nombre)
+    if (!correo && usuario?.email) setCorreo(usuario.email)
+  }, [nombre, correo, perfil, usuario])
+
+  async function confirmarPedido(evento) {
+    evento.preventDefault()
+    if (!usuario || items.length === 0 || enviando) return
+    setEnviando(true)
+    setMensaje('')
+
+    const { data, error } = await supabase.functions.invoke('confirmar-pedido', {
+      body: {
+        items: items.map((item) => ({ productoId: item.id, cantidad: item.cantidad })),
+        entrega: {
+          modalidad,
+          domicilio: modalidad === 'envio' ? domicilio.trim() : null,
+          codigoPostal: modalidad === 'envio' ? codigoPostal.trim() : null,
+        },
+        contacto: {
+          nombre: nombre.trim(),
+          telefono: telefono.trim(),
+          correo: correo.trim(),
+        },
+        resultadoCobro: resultado,
+      },
+    })
+
+    setEnviando(false)
+    if (error) {
+      setMensaje(await mensajeDeConfirmacion(error))
+      return
+    }
+    // A rejected charge is a 200 with no order. The cart stays as it is.
+    if (!data?.id) {
+      setMensaje('El cobro fue rechazado. El pedido no se registró.')
+      return
+    }
+    vaciarCarrito()
+    navegar('/confirmacion', { state: data })
+  }
+
+  async function verificarZona() {
+    const costo = await costoDeZona(codigoPostal)
+    if (costo === null) return
+    setCostoEnvio(costo)
+    setZonaConsultada(true)
+  }
+
+  // Refresh the zone before step 2 so the summary matches the total that will be stored.
+  async function continuar(evento) {
+    evento.preventDefault()
+    if (modalidad === 'envio') {
+      const costo = await costoDeZona(codigoPostal)
+      if (costo !== null) {
+        setCostoEnvio(costo)
+        setZonaConsultada(true)
+      }
+    }
+    setPaso(2)
+  }
+
+  return (
+    <main className="pagina">
+      <p className="ceja">
+        Pago · paso {paso} de 2 · {paso === 1 ? 'Entrega' : 'Cobro simulado'}
+      </p>
+      <div className="pago">
+        <section>
+          {paso === 1 ? (
+            <>
+              <h1 className="titulo">Entrega y datos</h1>
+              <form className="formulario" onSubmit={continuar}>
+                <label className="opcion">
+                  <input
+                    type="radio"
+                    name="modalidad"
+                    checked={modalidad === 'retiro'}
+                    onChange={() => setModalidad('retiro')}
+                  />
+                  <Icono nombre="local" />
+                  Retiro en el local · envío {pesos(0)}
+                </label>
+                <label className="opcion">
+                  <input
+                    type="radio"
+                    name="modalidad"
+                    checked={modalidad === 'envio'}
+                    onChange={() => setModalidad('envio')}
+                  />
+                  <Icono nombre="envio" />
+                  Envío a domicilio
+                </label>
+
+                {modalidad === 'envio' && (
+                  <>
+                    <label className="etiqueta" htmlFor="domicilio">Calle, altura y localidad</label>
+                    <input
+                      className="campo"
+                      id="domicilio"
+                      value={domicilio}
+                      placeholder="San Justo"
+                      onChange={(e) => setDomicilio(e.target.value)}
+                      required
+                    />
+                    <label className="etiqueta" htmlFor="cp">Código postal</label>
+                    <div className="linea-cp">
+                      <input
+                        className="campo"
+                        id="cp"
+                        value={codigoPostal}
+                        placeholder="1754"
+                        onChange={(e) => {
+                          setCodigoPostal(e.target.value)
+                          setZonaConsultada(false)
+                          setCostoEnvio(0)
+                        }}
+                        required
+                      />
+                      <button className="boton" type="button" onClick={verificarZona}>
+                        Verificar zona
+                      </button>
+                      {zonaConsultada && <span>Costo de envío {pesos(costoEnvio)}</span>}
+                    </div>
+                  </>
+                )}
+
+                <div className="dos">
+                  <div>
+                    <label className="etiqueta" htmlFor="nombre-pedido">Nombre</label>
+                    <input
+                      className="campo"
+                      id="nombre-pedido"
+                      value={nombre}
+                      placeholder="Nombre y apellido"
+                      onChange={(e) => setNombre(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="etiqueta" htmlFor="telefono">Teléfono</label>
+                    <input
+                      className="campo"
+                      id="telefono"
+                      value={telefono}
+                      placeholder="11 0000 0000"
+                      onChange={(e) => setTelefono(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <label className="etiqueta" htmlFor="correo-pedido">Correo</label>
+                <input
+                  className="campo"
+                  id="correo-pedido"
+                  type="email"
+                  value={correo}
+                  placeholder="correo@ejemplo.com"
+                  onChange={(e) => setCorreo(e.target.value)}
+                  required
+                />
+                <button className="boton" type="submit" disabled={!usuario || items.length === 0}>
+                  Continuar
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="titulo">Cobro simulado</h1>
+              <form className="formulario" onSubmit={confirmarPedido}>
+                <p className="nota">Resultado a simular</p>
+                {['aprobado', 'rechazado', 'pendiente'].map((valor) => (
+                  <label key={valor} className="opcion">
+                    <input
+                      type="radio"
+                      name="resultado"
+                      checked={resultado === valor}
+                      onChange={() => setResultado(valor)}
+                    />
+                    {valor === 'aprobado' ? 'Aprobado' : valor === 'rechazado' ? 'Rechazado' : 'Pendiente'}
+                  </label>
+                ))}
+                {mensaje && <p role="alert">{mensaje}</p>}
+                <button className="boton" type="submit" disabled={!usuario || items.length === 0 || enviando}>
+                  {enviando ? 'Confirmando…' : 'Confirmar pedido'}
+                </button>
+                <button className="enlace" type="button" onClick={() => setPaso(1)}>
+                  Volver a la entrega
+                </button>
+              </form>
+            </>
+          )}
+          {!usuario && (
+            <p className="nota">Para continuar hace falta una sesión. <Link to="/ingreso">Ingresar</Link></p>
+          )}
+        </section>
+        <Resumen items={items} envio={envio} total={subtotal + envio} />
+      </div>
+    </main>
+  )
+}
+
+export default Pago
+===== FIN ARCHIVO: src/pages/Pago.jsx =====
+
+===== INICIO ARCHIVO: supabase/functions/confirmar-pedido/index.ts =====
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+// Checkout endpoint. The browser sends the cart and a simulated payment result.
+// Prices, stock and shipping cost are read in Postgres, inside one transaction.
+// The receipt is sent afterwards; a mail failure does not roll the order back.
+// GMAIL_USER and GMAIL_APP_PASSWORD come from the function secrets, not from this file.
+
+const LOCAL_PICKUP = "Dietética Los Mirasoles, San Justo, La Matanza";
+const SMTP_HOST = "smtp.gmail.com";
+const SMTP_PORT = 587;
+const SMTP_TIMEOUT_MS = 10_000;
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+type OrderItem = {
+  productoId: string;
+  nombre: string;
+  cantidad: number;
+  precioUnitario: number;
+};
+
+type Order = {
+  id: number;
+  estado: string;
+  items: OrderItem[];
+  total: number;
+  modalidad: string;
+  costoEnvio: number;
+  direccionLocal?: string;
+  mail_ok?: boolean;
+};
+
+type CheckoutResult = {
+  status: number;
+  error?: string;
+  producto?: string;
+  pedido?: Order;
+};
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+function bearer(header: string | null): string | null {
+  if (!header) return null;
+  const value = header.trim();
+  if (!value) return null;
+  return value.toLowerCase().startsWith("bearer ") ? value : `Bearer ${value}`;
+}
+
+function asText(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function itemsForRpc(items: unknown): unknown {
+  if (!Array.isArray(items)) return null;
+  return items.map((item) => {
+    if (!item || typeof item !== "object") return item;
+    const row = item as Record<string, unknown>;
+    return { productoId: row.productoId, cantidad: row.cantidad };
+  });
+}
+
+async function userId(authHeader: string): Promise<string | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anonKey) return null;
+
+  const response = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: anonKey },
+  });
+  if (!response.ok) return null;
+  const body = await response.json();
+  return typeof body?.id === "string" ? body.id : null;
+}
+
+async function callCheckout(payload: Record<string, unknown>): Promise<CheckoutResult> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    throw new Error("Missing Supabase service configuration");
+  }
+
+  const response = await fetch(`${url}/rest/v1/rpc/confirmar_pedido`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    console.error("checkout rpc failed", response.status);
+    throw new Error("Checkout transaction failed");
+  }
+  return JSON.parse(text) as CheckoutResult;
+}
+
+async function markMailSent(orderId: number): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey || !Number.isInteger(orderId)) return false;
+
+  const response = await fetch(`${url}/rest/v1/pedidos?id=eq.${orderId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ mail_ok: true }),
+  });
+  return response.ok;
+}
+
+function money(value: number): string {
+  return `$ ${Number(value).toFixed(2)}`;
+}
+
+function receipt(order: Order): string {
+  const lines = order.items.map((item) =>
+    `- ${item.nombre} x ${item.cantidad} — ${money(item.precioUnitario)}`
+  );
+  const delivery = order.modalidad === "retiro" ? "Retiro en el local" : "Envío a domicilio";
+  const address = order.direccionLocal ? `\nDirección del local: ${order.direccionLocal}` : "";
+  return [
+    `Pedido ${order.id}`,
+    `Modalidad: ${delivery}${address}`,
+    "",
+    "Ítems:",
+    ...lines,
+    "",
+    `Total: ${money(order.total)}`,
+  ].join("\n");
+}
+
+class Smtp {
+  #conn: Deno.Conn;
+  #reader: ReadableStreamDefaultReader<Uint8Array>;
+  #writer: WritableStreamDefaultWriter<Uint8Array>;
+  #pending = "";
+
+  constructor(conn: Deno.Conn) {
+    this.#conn = conn;
+    this.#reader = conn.readable.getReader();
+    this.#writer = conn.writable.getWriter();
+  }
+
+  async #line(): Promise<string> {
+    const decoder = new TextDecoder();
+    while (!this.#pending.includes("\n")) {
+      const { value, done } = await this.#reader.read();
+      if (done) throw new Error("SMTP connection closed");
+      this.#pending += decoder.decode(value, { stream: true });
+    }
+    const end = this.#pending.indexOf("\n");
+    const line = this.#pending.slice(0, end).replace(/\r$/, "");
+    this.#pending = this.#pending.slice(end + 1);
+    return line;
+  }
+
+  async reply(): Promise<number> {
+    let line = await this.#line();
+    const code = Number(line.slice(0, 3));
+    while (line.length >= 4 && line[3] === "-") {
+      line = await this.#line();
+    }
+    if (!Number.isInteger(code)) throw new Error("Invalid SMTP reply");
+    return code;
+  }
+
+  async command(value: string): Promise<number> {
+    await this.#writer.write(new TextEncoder().encode(value));
+    return await this.reply();
+  }
+
+  // STARTTLS on port 587. Locks are released so the handshake can own the socket.
+  async startTls(): Promise<void> {
+    this.#reader.releaseLock();
+    this.#writer.releaseLock();
+    const tls = await Deno.startTls(this.#conn, { hostname: SMTP_HOST });
+    this.#conn = tls;
+    this.#reader = tls.readable.getReader();
+    this.#writer = tls.writable.getWriter();
+    this.#pending = "";
+  }
+
+  close(): void {
+    try {
+      this.#conn.close();
+    } catch {
+      // The timeout path may already have closed the socket.
+    }
+  }
+}
+
+function dotStuff(body: string): string {
+  return body
+    .replace(/\r?\n/g, "\r\n")
+    .split("\r\n")
+    .map((line) => (line.startsWith(".") ? `.${line}` : line))
+    .join("\r\n");
+}
+
+async function deliver(smtp: Smtp, from: string, to: string, subject: string, body: string): Promise<void> {
+  if (await smtp.reply() !== 220) throw new Error("SMTP greeting rejected");
+  if (await smtp.command("EHLO losmirasoles\r\n") !== 250) throw new Error("SMTP EHLO rejected");
+  if (await smtp.command("STARTTLS\r\n") !== 220) throw new Error("SMTP STARTTLS rejected");
+  await smtp.startTls();
+  if (await smtp.command("EHLO losmirasoles\r\n") !== 250) throw new Error("SMTP EHLO after TLS rejected");
+  if (await smtp.command("AUTH LOGIN\r\n") !== 334) throw new Error("SMTP AUTH rejected");
+  if (await smtp.command(`${btoa(from)}\r\n`) !== 334) throw new Error("SMTP user rejected");
+  const password = (Deno.env.get("GMAIL_APP_PASSWORD") ?? "").replace(/\s+/g, "");
+  if (await smtp.command(`${btoa(password)}\r\n`) !== 235) throw new Error("SMTP password rejected");
+  if (await smtp.command(`MAIL FROM:<${from}>\r\n`) !== 250) throw new Error("SMTP MAIL FROM rejected");
+  if (await smtp.command(`RCPT TO:<${to}>\r\n`) !== 250) throw new Error("SMTP RCPT TO rejected");
+  if (await smtp.command("DATA\r\n") !== 354) throw new Error("SMTP DATA rejected");
+
+  const message = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "",
+    dotStuff(body),
+    "",
+  ].join("\r\n");
+  if (await smtp.command(`${message}\r\n.\r\n`) !== 250) throw new Error("SMTP message rejected");
+  await smtp.command("QUIT\r\n").catch(() => undefined);
+}
+
+async function sendReceipt(order: Order, to: string): Promise<void> {
+  const from = (Deno.env.get("GMAIL_USER") ?? "").trim();
+  const conn = await Deno.connect({ hostname: SMTP_HOST, port: SMTP_PORT });
+  const smtp = new Smtp(conn);
+  let timer: number | undefined;
+  try {
+    await Promise.race([
+      deliver(smtp, from, to, `Pedido ${order.id}`, receipt(order)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          smtp.close();
+          reject(new Error("SMTP timeout"));
+        }, SMTP_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    smtp.close();
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "Método no permitido" });
+  }
+
+  const authHeader = bearer(req.headers.get("Authorization"));
+  if (!authHeader) return json(401, { error: "Se requiere sesión" });
+
+  const perfilId = await userId(authHeader);
+  if (!perfilId) return json(401, { error: "Se requiere sesión" });
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return json(422, { error: "Falta un dato obligatorio" });
+  }
+
+  const entrega = (body.entrega ?? {}) as Record<string, unknown>;
+  const contacto = (body.contacto ?? {}) as Record<string, unknown>;
+  const items = itemsForRpc(body.items);
+  if (!items) return json(422, { error: "Falta un dato obligatorio" });
+
+  let result: CheckoutResult;
+  try {
+    result = await callCheckout({
+      p_perfil_id: perfilId,
+      p_items: items,
+      p_modalidad: asText(entrega.modalidad),
+      p_domicilio: asText(entrega.domicilio),
+      p_codigo_postal: asText(entrega.codigoPostal),
+      p_nombre: asText(contacto.nombre),
+      p_telefono: asText(contacto.telefono),
+      p_correo: asText(contacto.correo),
+      p_resultado: asText(body.resultadoCobro),
+    });
+  } catch {
+    return json(500, { error: "No se pudo confirmar el pedido" });
+  }
+
+  if (result.status === 422) {
+    return json(422, { error: "Falta un dato obligatorio" });
+  }
+  if (result.status === 409) {
+    return json(409, { producto: result.producto });
+  }
+  if (result.status === 200) {
+    return json(200, { pedido: null });
+  }
+  if (result.status !== 201 || !result.pedido) {
+    return json(500, { error: "No se pudo confirmar el pedido" });
+  }
+
+  const order = result.pedido;
+  if (!order.direccionLocal && order.modalidad === "retiro") {
+    order.direccionLocal = LOCAL_PICKUP;
+  }
+
+  let mailOk = false;
+  const gmailUser = (Deno.env.get("GMAIL_USER") ?? "").trim();
+  const gmailPassword = (Deno.env.get("GMAIL_APP_PASSWORD") ?? "").trim();
+  if (gmailUser && gmailPassword && contacto.correo) {
+    try {
+      await sendReceipt(order, String(contacto.correo).trim());
+      mailOk = await markMailSent(order.id);
+    } catch (error) {
+      console.error("receipt mail failed", error instanceof Error ? error.message : "unknown");
+      mailOk = false;
+    }
+  }
+
+  return json(201, { ...order, mail_ok: mailOk });
+});
+===== FIN ARCHIVO: supabase/functions/confirmar-pedido/index.ts =====
+
+===== INICIO ARCHIVO: supabase/schema.sql =====
+-- Reference schema for Dietética Los Mirasoles.
+-- Exported from the hosted project on 2026-10-29.
+-- It does not create auth.users, the storage bucket, or product images.
+-- Secrets (anon key, service role, Gmail app password) are not in this file.
+-- The 32 catalog products live in the hosted database. Categories and zones are seeded below.
+
+create table public.categorias (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null unique
+);
+
+create table public.productos (
+  id uuid primary key default gen_random_uuid(),
+  categoria_id uuid not null references public.categorias (id),
+  nombre text not null,
+  descripcion text not null default '',
+  precio numeric not null check (precio >= 0),
+  unidad_venta text not null default 'unidad',
+  stock integer not null default 0 check (stock >= 0),
+  publicado boolean not null default false,
+  sin_tacc boolean not null default false,
+  vegano boolean not null default false,
+  sin_lactosa boolean not null default false,
+  info_nutricional text,
+  imagen_path text
+);
+
+create table public.zonas_cobertura (
+  codigo_postal text primary key,
+  costo_envio numeric not null check (costo_envio >= 0)
+);
+
+create table public.perfiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  nombre text not null default '',
+  rol text not null default 'cliente' check (rol in ('cliente', 'administrador'))
+);
+
+create table public.pedidos (
+  id bigint generated always as identity primary key,
+  perfil_id uuid not null references public.perfiles (id),
+  estado text not null check (estado in (
+    'pendiente_confirmacion', 'recibido', 'en_preparacion',
+    'listo_retiro', 'despachado', 'entregado', 'cancelado'
+  )),
+  resultado_cobro text not null check (resultado_cobro in ('aprobado', 'pendiente')),
+  modalidad text not null check (modalidad in ('retiro', 'envio')),
+  costo_envio numeric not null default 0 check (costo_envio >= 0),
+  total numeric not null check (total >= 0),
+  codigo_postal text,
+  domicilio text,
+  nombre text not null,
+  telefono text not null,
+  correo text not null,
+  mail_ok boolean not null default false,
+  creado_en timestamptz not null default now(),
+  stock_descontado boolean not null default false
+);
+
+create table public.pedido_items (
+  id uuid primary key default gen_random_uuid(),
+  pedido_id bigint not null references public.pedidos (id) on delete cascade,
+  producto_id uuid not null references public.productos (id),
+  nombre text not null,
+  cantidad integer not null check (cantidad > 0),
+  precio_unitario numeric not null check (precio_unitario >= 0)
+);
+
+create table public.pedido_cambios (
+  id uuid primary key default gen_random_uuid(),
+  pedido_id bigint not null references public.pedidos (id) on delete cascade,
+  estado text not null,
+  en timestamptz not null default now()
+);
+
+alter table public.categorias enable row level security;
+alter table public.productos enable row level security;
+alter table public.zonas_cobertura enable row level security;
+alter table public.perfiles enable row level security;
+alter table public.pedidos enable row level security;
+alter table public.pedido_items enable row level security;
+alter table public.pedido_cambios enable row level security;
+
+create or replace function public.es_administrador()
+returns boolean
+language sql
+stable
+security definer
+set search_path to public
+as $$
+  select exists (
+    select 1 from public.perfiles
+    where id = auth.uid() and rol = 'administrador'
+  );
+$$;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path to public
+as $$
+begin
+  insert into public.perfiles (id, nombre, rol)
+  values (
+    new.id,
+    coalesce(nullif(new.raw_user_meta_data ->> 'nombre', ''), split_part(new.email, '@', 1)),
+    'cliente'
+  );
+  return new;
+end;
+$$;
+
+create or replace function public.bloquear_cambio_de_rol()
+returns trigger
+language plpgsql
+set search_path to public
+as $$
+begin
+  if new.rol is distinct from old.rol and auth.uid() is not null then
+    raise exception 'el rol no se puede cambiar desde la aplicacion';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.marcar_stock_al_crear_pedido()
+returns trigger
+language plpgsql
+security definer
+set search_path to public
+as $$
+begin
+  -- Checkout already moved the units. This only records that fact.
+  new.stock_descontado := new.estado in (
+    'en_preparacion', 'listo_retiro', 'despachado', 'entregado'
+  );
+  return new;
+end;
+$$;
+
+create or replace function public.anotar_estado_inicial()
+returns trigger
+language plpgsql
+security definer
+set search_path to public
+as $$
+begin
+  insert into public.pedido_cambios (pedido_id, estado, en)
+  values (new.id, new.estado, coalesce(new.creado_en, now()));
+  return new;
+end;
+$$;
+
+create or replace function public.aplicar_cambio_estado_pedido()
+returns trigger
+language plpgsql
+security definer
+set search_path to public
+as $$
+declare
+  v_faltante text;
+  v_debe_tener boolean;
+begin
+  -- Ignore a flag sent by the browser. The rule below owns this column.
+  new.stock_descontado := old.stock_descontado;
+
+  if new.estado is not distinct from old.estado then
+    return new;
+  end if;
+
+  if new.estado not in (
+    'pendiente_confirmacion', 'recibido', 'en_preparacion',
+    'listo_retiro', 'despachado', 'entregado', 'cancelado'
+  ) then
+    raise exception 'Ese estado no está permitido';
+  end if;
+
+  if new.estado = 'listo_retiro' and new.modalidad is distinct from 'retiro' then
+    raise exception 'Este pedido es un envío: marcá despachado';
+  end if;
+
+  if new.estado = 'despachado' and new.modalidad is distinct from 'envio' then
+    raise exception 'Este pedido es un retiro: marcá listo para retiro';
+  end if;
+
+  v_debe_tener := new.estado in (
+    'en_preparacion', 'listo_retiro', 'despachado', 'entregado'
+  );
+
+  if v_debe_tener and not old.stock_descontado then
+    perform 1
+    from public.productos p
+    where p.id in (
+      select i.producto_id from public.pedido_items i where i.pedido_id = new.id
+    )
+    order by p.id
+    for update;
+
+    select p.nombre into v_faltante
+    from (
+      select producto_id, sum(cantidad)::integer as cantidad
+      from public.pedido_items
+      where pedido_id = new.id
+      group by producto_id
+    ) i
+    join public.productos p on p.id = i.producto_id
+    where p.stock < i.cantidad
+    order by p.nombre
+    limit 1;
+
+    if v_faltante is not null then
+      raise exception 'No alcanza el stock de %', v_faltante;
+    end if;
+
+    update public.productos p
+    set stock = p.stock - i.cantidad
+    from (
+      select producto_id, sum(cantidad)::integer as cantidad
+      from public.pedido_items
+      where pedido_id = new.id
+      group by producto_id
+    ) i
+    where p.id = i.producto_id;
+
+    new.stock_descontado := true;
+  elsif not v_debe_tener and old.stock_descontado then
+    perform 1
+    from public.productos p
+    where p.id in (
+      select i.producto_id from public.pedido_items i where i.pedido_id = new.id
+    )
+    order by p.id
+    for update;
+
+    update public.productos p
+    set stock = p.stock + i.cantidad
+    from (
+      select producto_id, sum(cantidad)::integer as cantidad
+      from public.pedido_items
+      where pedido_id = new.id
+      group by producto_id
+    ) i
+    where p.id = i.producto_id;
+
+    new.stock_descontado := false;
+  end if;
+
+  insert into public.pedido_cambios (pedido_id, estado)
+  values (new.id, new.estado);
+
+  return new;
+end;
+$$;
+
+-- confirmar_pedido is the checkout transaction. The browser does not call it.
+-- supabase/functions/confirmar-pedido/index.ts calls it with the service role.
+-- An unknown postal code leaves the shipping cost at 0 and still creates the order.
+-- A rejected payment returns status 200 and inserts nothing.
+
+create or replace function public.confirmar_pedido(
+  p_perfil_id uuid,
+  p_items jsonb,
+  p_modalidad text,
+  p_domicilio text,
+  p_codigo_postal text,
+  p_nombre text,
+  p_telefono text,
+  p_correo text,
+  p_resultado text
+)
+returns jsonb
+language plpgsql
+set search_path to public
+as $$
+declare
+  v_item jsonb;
+  v_producto_id uuid;
+  v_cantidad integer;
+  v_pos integer;
+  v_ids uuid[] := '{}';
+  v_qtys integer[] := '{}';
+  v_nombre text;
+  v_costo numeric := 0;
+  v_subtotal numeric := 0;
+  v_total numeric;
+  v_pedido_id bigint;
+  v_estado text;
+  v_items jsonb;
+begin
+  if p_perfil_id is null
+     or not exists (select 1 from public.perfiles where id = p_perfil_id) then
+    return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+  end if;
+
+  if p_modalidad not in ('retiro', 'envio')
+     or p_resultado not in ('aprobado', 'rechazado', 'pendiente')
+     or nullif(btrim(coalesce(p_nombre, '')), '') is null
+     or nullif(btrim(coalesce(p_telefono, '')), '') is null
+     or nullif(btrim(coalesce(p_correo, '')), '') is null
+     or btrim(p_correo) !~ '^[^[:space:]@]+@[^[:space:]@]+$'
+     or jsonb_typeof(p_items) is distinct from 'array'
+     or jsonb_array_length(p_items) = 0 then
+    return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+  end if;
+
+  if p_modalidad = 'envio'
+     and (
+       nullif(btrim(coalesce(p_domicilio, '')), '') is null
+       or nullif(btrim(coalesce(p_codigo_postal, '')), '') is null
+     ) then
+    return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+  end if;
+
+  for v_item in select value from jsonb_array_elements(p_items)
+  loop
+    if jsonb_typeof(v_item) is distinct from 'object'
+       or jsonb_typeof(v_item->'productoId') is distinct from 'string'
+       or jsonb_typeof(v_item->'cantidad') is distinct from 'number' then
+      return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+    end if;
+
+    begin
+      v_producto_id := (v_item->>'productoId')::uuid;
+      v_cantidad := (v_item->>'cantidad')::integer;
+    exception
+      when invalid_text_representation or numeric_value_out_of_range then
+        return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+    end;
+
+    if v_producto_id is null or v_cantidad is null or v_cantidad <= 0 then
+      return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+    end if;
+
+    v_pos := array_position(v_ids, v_producto_id);
+    if v_pos is null then
+      v_ids := array_append(v_ids, v_producto_id);
+      v_qtys := array_append(v_qtys, v_cantidad);
+    else
+      v_qtys[v_pos] := v_qtys[v_pos] + v_cantidad;
+    end if;
+  end loop;
+
+  -- Lock in a stable order so two checkouts cannot both take the last unit.
+  perform 1
+  from public.productos
+  where id = any (v_ids)
+  order by id
+  for update;
+
+  if (
+    select count(*)
+    from public.productos
+    where id = any (v_ids)
+      and publicado
+  ) <> coalesce(array_length(v_ids, 1), 0) then
+    return jsonb_build_object('status', 422, 'error', 'Falta un dato obligatorio');
+  end if;
+
+  select p.nombre into v_nombre
+  from unnest(v_ids, v_qtys) as t(producto_id, cantidad)
+  join public.productos p on p.id = t.producto_id
+  where p.stock < t.cantidad
+  order by p.nombre
+  limit 1;
+
+  if found then
+    return jsonb_build_object('status', 409, 'producto', v_nombre);
+  end if;
+
+  -- Rejected payment creates no row and sends no mail.
+  if p_resultado = 'rechazado' then
+    return jsonb_build_object('status', 200);
+  end if;
+
+  if p_modalidad = 'envio' then
+    select z.costo_envio into v_costo
+    from public.zonas_cobertura z
+    where z.codigo_postal = btrim(p_codigo_postal);
+    if not found then
+      v_costo := 0;
+    end if;
+  end if;
+
+  select coalesce(sum(p.precio * t.cantidad), 0) into v_subtotal
+  from unnest(v_ids, v_qtys) as t(producto_id, cantidad)
+  join public.productos p on p.id = t.producto_id;
+
+  v_total := v_subtotal + v_costo;
+  v_estado := case
+    when p_resultado = 'aprobado' then 'en_preparacion'
+    else 'pendiente_confirmacion'
+  end;
+
+  insert into public.pedidos (
+    perfil_id, estado, resultado_cobro, modalidad, costo_envio, total,
+    codigo_postal, domicilio, nombre, telefono, correo
+  ) values (
+    p_perfil_id, v_estado, p_resultado, p_modalidad, v_costo, v_total,
+    case when p_modalidad = 'envio' then btrim(p_codigo_postal) else null end,
+    case when p_modalidad = 'envio' then btrim(p_domicilio) else null end,
+    btrim(p_nombre), btrim(p_telefono), btrim(p_correo)
+  )
+  returning id into v_pedido_id;
+
+  insert into public.pedido_items (pedido_id, producto_id, nombre, cantidad, precio_unitario)
+  select v_pedido_id, p.id, p.nombre, t.cantidad, p.precio
+  from unnest(v_ids, v_qtys) as t(producto_id, cantidad)
+  join public.productos p on p.id = t.producto_id;
+
+  if p_resultado = 'aprobado' then
+    update public.productos p
+    set stock = p.stock - t.cantidad
+    from unnest(v_ids, v_qtys) as t(producto_id, cantidad)
+    where p.id = t.producto_id;
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'productoId', pi.producto_id,
+      'nombre', pi.nombre,
+      'cantidad', pi.cantidad,
+      'precioUnitario', pi.precio_unitario
+    )
+    order by pi.nombre
+  ), '[]'::jsonb)
+  into v_items
+  from public.pedido_items pi
+  where pi.pedido_id = v_pedido_id;
+
+  return jsonb_strip_nulls(jsonb_build_object(
+    'status', 201,
+    'pedido', jsonb_build_object(
+      'id', v_pedido_id,
+      'estado', v_estado,
+      'items', v_items,
+      'total', v_total,
+      'modalidad', p_modalidad,
+      'costoEnvio', v_costo,
+      'direccionLocal', case
+        when p_modalidad = 'retiro'
+          then 'Dietética Los Mirasoles, San Justo, La Matanza'
+        else null
+      end
+    )
+  ));
+end;
+$$;
+
+-- Requires permission on auth.users. Already present in the hosted project.
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+create trigger perfiles_bloquear_rol
+  before update on public.perfiles
+  for each row execute function public.bloquear_cambio_de_rol();
+
+create trigger pedidos_marcar_stock_al_crear
+  before insert on public.pedidos
+  for each row execute function public.marcar_stock_al_crear_pedido();
+
+create trigger pedidos_anotar_estado_inicial
+  after insert on public.pedidos
+  for each row execute function public.anotar_estado_inicial();
+
+create trigger pedidos_aplicar_cambio_estado
+  before update on public.pedidos
+  for each row execute function public.aplicar_cambio_estado_pedido();
+
+create policy categorias_lectura on public.categorias
+  for select to anon, authenticated using (true);
+create policy categorias_admin on public.categorias
+  for all to authenticated using (es_administrador()) with check (es_administrador());
+
+create policy productos_lectura on public.productos
+  for select to anon, authenticated using (publicado or es_administrador());
+create policy productos_admin on public.productos
+  for all to authenticated using (es_administrador()) with check (es_administrador());
+
+create policy zonas_lectura on public.zonas_cobertura
+  for select to anon, authenticated using (true);
+
+create policy perfiles_lectura on public.perfiles
+  for select to authenticated using ((id = auth.uid()) or es_administrador());
+create policy perfiles_actualizar on public.perfiles
+  for update to authenticated
+  using ((id = auth.uid()) or es_administrador())
+  with check ((id = auth.uid()) or es_administrador());
+
+create policy pedidos_lectura on public.pedidos
+  for select to authenticated using ((perfil_id = auth.uid()) or es_administrador());
+create policy pedidos_admin_actualizar on public.pedidos
+  for update to authenticated using (es_administrador()) with check (es_administrador());
+
+create policy pedido_items_lectura on public.pedido_items
+  for select to authenticated using (
+    exists (
+      select 1 from public.pedidos
+      where pedidos.id = pedido_items.pedido_id
+        and (pedidos.perfil_id = auth.uid() or es_administrador())
+    )
+  );
+
+create policy pedido_cambios_lectura on public.pedido_cambios
+  for select to authenticated using (es_administrador());
+
+-- Bucket "productos": public read. Write is limited to es_administrador().
+-- Images are files in Storage, not rows in this script.
+
+insert into public.categorias (nombre) values
+  ('Endulzantes'),
+  ('Frutas deshidratadas'),
+  ('Granos y legumbres'),
+  ('Harinas sin TACC'),
+  ('Hierbas e infusiones'),
+  ('Semillas y frutos secos'),
+  ('Snacks');
+
+insert into public.zonas_cobertura (codigo_postal, costo_envio) values
+  ('1706', 3200),
+  ('1754', 2500);
+===== FIN ARCHIVO: supabase/schema.sql =====
+
+===== INICIO ARCHIVO: vite.config.js =====
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+})
+===== FIN ARCHIVO: vite.config.js =====
+
