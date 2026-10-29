@@ -706,6 +706,12 @@ a {
   gap: 0;
 }
 
+/* Shared tracks so the header labels sit on the same columns as the inputs.
+   The last track is the row actions; an empty header cell still occupies it. */
+.tabla-productos {
+  grid-template-columns: minmax(0, 1fr) 9rem 6rem max-content;
+}
+
 .tabla-cabeza,
 .tabla-fila {
   display: grid;
@@ -715,6 +721,12 @@ a {
   padding: 14px;
   border: 1px solid var(--line);
   background: var(--white);
+}
+
+.tabla-productos > .tabla-cabeza,
+.tabla-productos > .tabla-fila {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
 }
 
 .tabla-cabeza {
@@ -746,10 +758,15 @@ a {
   .pago,
   .form-grid,
   .carrito-tabla,
+  .tabla,
+  .tabla-productos,
   .tabla-cabeza,
   .tabla-fila,
-  .tabla-pedidos {
+  .tabla-pedidos,
+  .tabla-productos > .tabla-cabeza,
+  .tabla-productos > .tabla-fila {
     grid-template-columns: 1fr;
+    grid-column: auto;
   }
 
   .carrito-encabezado {

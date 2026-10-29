@@ -265,7 +265,7 @@ function ProductosAdmin() {
       />
       <main className="pagina">
         {mensaje && <p className="nota" role="alert">{mensaje}</p>}
-        <div className="tabla">
+        <div className="tabla tabla-productos">
           <div className="tabla-cabeza">
             <span>Nombre</span>
             <span>Precio</span>
