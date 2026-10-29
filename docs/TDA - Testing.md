@@ -18,7 +18,7 @@ Los tests usan un viewport de 360 x 740 (RNF-01, celular).
 
 - **Supabase se simula con `cy.intercept`.** Los tests no leen ni escriben la base real, no crean pedidos y no usan credenciales. El correo y el token de sesión son inventados y la contraseña se genera al azar en cada corrida.
 - **Todo pedido a Supabase queda bloqueado por defecto.** Cada test falla si salió un pedido que no estaba simulado (`verificarSinNoPrevistos`). Así un error en un test no puede tocar la base compartida.
-- **El carrito vive en memoria de React** (decisión de diseño, RF-10 fuera de alcance). Un `cy.visit` nuevo lo vacía, por eso los tests que usan carrito entran por `/` una sola vez y navegan con clics.
+- **El carrito vive en memoria de React.** Un `cy.visit` nuevo lo vacía, por eso los tests que usan carrito entran por `/` una sola vez y navegan con clics.
 - Las ayudas compartidas (intercepts, fábrica de productos, login por pantalla) están en `cypress/e2e/ayudas.js`. No es un spec.
 
 ## Qué se prueba 
