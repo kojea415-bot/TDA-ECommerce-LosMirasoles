@@ -137,7 +137,7 @@ Para probar el otro acceso se usa una segunda cuenta, cargada de antemano, con r
 | --- | --- |
 | id | Número que ve el cliente |
 | perfil_id | Quien confirmó |
-| estado | `en_preparacion` si el cobro fue aprobado. `pendiente_confirmacion` si fue pendiente |
+| estado | Al confirmar: `en_preparacion` si el cobro fue aprobado, `pendiente_confirmacion` si fue pendiente. El panel puede pasar a `recibido`, `listo_retiro` (solo retiro), `despachado` (solo envío), `entregado` o `cancelado` |
 | resultado_cobro | `aprobado` o `pendiente`. El rechazado no crea fila |
 | modalidad | `retiro` o `envio` |
 | costo_envio | Cero en retiro. En envío, el valor de la zona o cero si el código no está cargado |
@@ -149,6 +149,7 @@ Para probar el otro acceso se usa una segunda cuenta, cargada de antemano, con r
 | correo | Destino del comprobante |
 | mail_ok | Falso si SMTP falló |
 | creado_en | |
+| stock_descontado | Verdadero mientras el pedido tiene unidades descontadas. Lo escribe el trigger, no el navegador |
 
 ### pedido_items
 
@@ -161,12 +162,24 @@ Para probar el otro acceso se usa una segunda cuenta, cargada de antemano, con r
 | cantidad | Entero |
 | precio_unitario | Copiado al confirmar |
 
+### pedido_cambios
+
+Una fila por estado, con la fecha del cambio. La primera la escribe el alta del pedido. Las siguientes, el trigger que aplica el cambio de estado. El administrador la lee. El navegador no la inserta.
+
+| Columna | Notas |
+| --- | --- |
+| id | Clave |
+| pedido_id | |
+| estado | El estado al que pasó |
+| en | Fecha del cambio |
+
 ### Permisos
 
 - Cualquiera lee productos publicados y categorías.
 - El cliente lee solo sus pedidos.
 - El administrador lee y actualiza productos y pedidos.
-- Stock, alta de pedido e ítems los escribe la función, no el navegador.
+- El alta del pedido, sus ítems y el descuento del checkout los escribe `confirmar-pedido`, no el navegador.
+- El panel actualiza el catálogo. Al cambiar el estado de un pedido, el trigger descuenta o devuelve el stock en la misma operación: descuenta al entrar en preparación, listo, despachado o entregado, y devuelve al salir de esos estados.
 
 El descuento de stock y el alta del pedido ocurren en la misma transacción. Dos confirmaciones de la última unidad dejan un solo pedido aprobado.
 
