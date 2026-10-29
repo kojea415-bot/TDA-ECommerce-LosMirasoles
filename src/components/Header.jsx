@@ -9,7 +9,7 @@ function Header() {
   const total = items.reduce((suma, i) => suma + i.cantidad, 0)
 
   // Sesión: si hay usuario se muestra "Salir", si no "Cuenta"
-  const { usuario, perfil, cerrarSesion } = useAuth()
+  const { usuario, cerrarSesion } = useAuth()
 
   return (
     <header className="header">
@@ -18,12 +18,6 @@ function Header() {
         Dietética Los Mirasoles
       </Link>
       <nav className="header-nav">
-        {perfil?.rol === 'administrador' && (
-          <Link to="/admin/pedidos">
-            <Icono nombre="panel" />
-            Panel
-          </Link>
-        )}
         {usuario ? (
           <button type="button" onClick={cerrarSesion}>
             <Icono nombre="salir" />

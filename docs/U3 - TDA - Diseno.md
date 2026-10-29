@@ -67,7 +67,7 @@ Queda afuera de esta elección: pasarela de pago, marketplace, operador logísti
 | Correo | La misma función, hacia SMTP | Comprobante si el pedido quedó grabado. Si Gmail falla, el pedido no se borra |
 | Datos | Postgres | Tablas de la sección 4 y permisos por fila |
 
-El mismo login sirve para los dos accesos. El rol de `perfiles` decide si entra como cliente o como administrador. Este documento no diseña las pantallas del panel.
+El mismo login sirve para los dos accesos. El rol de `perfiles` decide el destino. El cliente entra a la tienda. El administrador entra al panel (`/admin/pedidos` y `/admin/productos`) y no ve el catálogo, el carrito ni el checkout: si abre una ruta de la tienda, vuelve a Pedidos. Las pantallas del panel siguen los wireframes de la fase de análisis.
 
 ---
 

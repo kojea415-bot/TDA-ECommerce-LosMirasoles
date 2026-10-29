@@ -33,12 +33,24 @@ function Ingreso() {
 
   async function entrar(e) {
     e.preventDefault()
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: correo,
       password: contrasenia,
     })
     setErrorIngreso(error ? 'Correo o contraseña incorrectos' : '')
-    if (!error) navegar(destino)
+    if (error) return
+    const { data: fila } = await supabase
+      .from('perfiles')
+      .select('rol')
+      .eq('id', data.user.id)
+      .maybeSingle()
+    // The administrator stays in the panel. The store is the customer's side.
+    if (fila?.rol === 'administrador') {
+      const panel = destino.startsWith('/admin') ? destino : '/admin/pedidos'
+      navegar(panel, { replace: true })
+      return
+    }
+    navegar(destino)
   }
 
   async function crearCuenta(e) {

@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Carrito from './pages/Carrito'
 import Catalogo from './pages/Catalogo'
 import Confirmacion from './pages/Confirmacion'
@@ -9,14 +9,27 @@ import PedidosAdmin from './pages/admin/Pedidos'
 import ProductosAdmin from './pages/admin/Productos'
 
 import Header from './components/Header'
+import { useAuth } from './context/AuthContext'
 
-// Qué pantalla se muestra en cada dirección
-function App() {
-  const admin = useLocation().pathname.startsWith('/admin')
+// The store header and the customer screens. An administrator never sees them.
+function Tienda() {
+  const { usuario, perfil, perfilListo, cargando } = useAuth()
+
+  if (cargando || (usuario && !perfilListo)) {
+    return (
+      <main className="pagina">
+        <p>Cargando...</p>
+      </main>
+    )
+  }
+
+  if (perfil?.rol === 'administrador') {
+    return <Navigate to="/admin/pedidos" replace />
+  }
 
   return (
-    <div>
-      {!admin && <Header />}
+    <>
+      <Header />
       <Routes>
         <Route path="/" element={<Catalogo />} />
         <Route path="/producto/:id" element={<Ficha />} />
@@ -24,11 +37,24 @@ function App() {
         <Route path="/ingreso" element={<Ingreso />} />
         <Route path="/pago" element={<Pago />} />
         <Route path="/confirmacion" element={<Confirmacion />} />
+      </Routes>
+    </>
+  )
+}
+
+function App() {
+  const enPanel = useLocation().pathname.startsWith('/admin')
+
+  if (enPanel) {
+    return (
+      <Routes>
         <Route path="/admin/pedidos" element={<PedidosAdmin />} />
         <Route path="/admin/productos" element={<ProductosAdmin />} />
       </Routes>
-    </div>
-  )
+    )
+  }
+
+  return <Tienda />
 }
 
 export default App
