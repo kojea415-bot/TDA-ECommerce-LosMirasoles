@@ -144,7 +144,12 @@ export function agregarDesdeCatalogo(nombre) {
   cy.contains('.tarjeta', nombre).contains('button', 'Agregar').click()
 }
 
+// El contador va en la insignia, no en el texto "Carrito (n)".
+export function verCarrito(cantidad) {
+  cy.get('a.header-carrito').find('.cuenta').should('have.text', String(cantidad))
+}
+
 // Va al carrito con el link del Header (no recarga la página)
 export function irAlCarrito() {
-  cy.contains('a', /^Carrito \(\d+\)$/).click()
+  cy.get('a.header-carrito').click()
 }

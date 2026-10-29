@@ -37,7 +37,7 @@ Los tests usan un viewport de 360 x 740 (RNF-01, celular).
 | `ingreso.cy.js` | Alta exitosa: navega al inicio | HU-05 |
 | `app.cy.js` | La app abre y muestra el título (prueba de humo) | — |
 
-Resultado de la última corrida: los 10 tests nuevos y la prueba de humo pasan.
+Resultado de la última corrida: los 11 tests pasan, incluida la prueba de humo.
 
 ## Qué no se prueba y por qué
 
@@ -65,6 +65,8 @@ El plan salió de dos agentes de Claude Code definidos en `.claude/agents/`:
 - **Prueba que fallaba por el test, no por la tienda.** El pago pide nombre y correo precargados y los vuelve a llenar si quedan vacíos. El test borraba el campo y escribía encima, y el correo quedaba duplicado: el navegador bloqueaba el envío. Se resolvió escribiendo sobre la selección en lugar de vaciar el campo.
 - **React ejecuta cada efecto dos veces en desarrollo** (modo estricto), así que el catálogo pide los productos dos veces con `npm run dev`. El test compara los pedidos antes y después de filtrar, no contra un número fijo.
 - **Diferencia entre el análisis y el código.** U2 dice que sin sesión "Ir a pagar" lleva a ingresar. En el código, el botón directamente no aparece. El test sigue el criterio de HU-05 (el botón se oculta sin sesión).
+- **El contador del carrito está en la insignia del encabezado.** El enlace dice "Carrito" y el número va en `.cuenta`.
+- **Sin sesión, "Seguir comprando" lleva a ingresar.** Después de entrar, vuelve al catálogo. En la tarjeta, un producto sin stock dice "Sin stock"; "No disponible" queda en la ficha.
 - **El rechazo muestra un texto fijo.** U2 habla del motivo del rechazo, pero la función no lo devuelve y la pantalla no lo muestra.
 - **El navegador consulta `zonas_cobertura`** para mostrar el costo de envío. Es solo una vista previa: el costo definitivo lo decide la función.
 - La prueba de humo `app.cy.js` todavía lee la base real (solo lectura). Conviene simular esas dos consultas.

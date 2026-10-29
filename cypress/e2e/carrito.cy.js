@@ -3,6 +3,7 @@ import {
   ingresarPorUI,
   irAlCarrito,
   pesos,
+  verCarrito,
   prepararTienda,
   producto,
   verificarSinNoPrevistos,
@@ -24,7 +25,7 @@ describe('Carrito', () => {
     // El mismo producto dos veces: una fila con cantidad 2 y Header (2)
     agregarDesdeCatalogo('Harina de arroz')
     agregarDesdeCatalogo('Harina de arroz')
-    cy.contains('a', 'Carrito (2)').should('exist')
+    verCarrito(2)
     agregarDesdeCatalogo('Miel de campo')
     irAlCarrito()
     cy.get('.carrito-fila').should('have.length', 2)
@@ -44,8 +45,10 @@ describe('Carrito', () => {
     cy.contains('.carrito-fila', 'Harina de arroz').should('not.exist')
     subtotal(2500)
 
-    // "Quitar" elimina la fila
+    // Sin sesión, seguir comprando pide ingreso y vuelve al catálogo
     cy.contains('a', 'Seguir comprando').click()
+    cy.location('pathname').should('eq', '/ingreso')
+    ingresarPorUI()
     agregarDesdeCatalogo('Harina de arroz')
     irAlCarrito()
     subtotal(1200 + 2500)
@@ -56,7 +59,7 @@ describe('Carrito', () => {
     // "Vaciar carrito" deja el carrito vacío
     cy.contains('button', 'Vaciar carrito').click()
     cy.contains('Tu carrito está vacío').should('be.visible')
-    cy.contains('a', 'Carrito (0)').should('exist')
+    verCarrito(0)
   })
 
   it('HU-04/HU-05: "Ir a pagar" solo con sesión y con productos', () => {

@@ -1,4 +1,4 @@
-import { prepararTienda, producto, verificarSinNoPrevistos } from './ayudas'
+import { prepararTienda, producto, verCarrito, verificarSinNoPrevistos } from './ayudas'
 
 describe('Catálogo', () => {
   afterEach(verificarSinNoPrevistos)
@@ -69,7 +69,6 @@ describe('Catálogo', () => {
     // Catálogo: se ve, dice sin stock y no tiene botón Agregar
     cy.contains('.tarjeta', 'Avena agotada').within(() => {
       cy.contains('Sin stock').should('be.visible')
-      cy.contains('No disponible').should('be.visible')
       cy.contains('button', 'Agregar').should('not.exist')
     })
 
@@ -80,8 +79,8 @@ describe('Catálogo', () => {
     cy.contains('a', 'Volver al catálogo').click()
 
     // Con stock: se agrega y el Header lo refleja
-    cy.contains('a', 'Carrito (0)').should('exist')
+    verCarrito(0)
     cy.contains('.tarjeta', 'Miel de campo').contains('button', 'Agregar').click()
-    cy.contains('a', 'Carrito (1)').should('exist')
+    verCarrito(1)
   })
 })

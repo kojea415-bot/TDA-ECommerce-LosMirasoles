@@ -4,6 +4,7 @@ import {
   ingresarPorUI,
   irAlCarrito,
   pesos,
+  verCarrito,
   prepararTienda,
   producto,
   responder,
@@ -81,7 +82,7 @@ describe('Checkout', () => {
     cy.contains('En preparación').should('be.visible')
     cy.contains(`${harina.nombre} × 2`).should('be.visible')
     cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
-    cy.contains('a', 'Carrito (0)').should('exist')
+    verCarrito(0)
   })
 
   it('HU-08: pago rechazado no registra el pedido y permite reintentar', () => {
@@ -99,7 +100,7 @@ describe('Checkout', () => {
     // Sigue en /pago con el aviso y el carrito intacto
     cy.location('pathname').should('eq', '/pago')
     cy.get('[role="alert"]').should('contain', 'El cobro fue rechazado')
-    cy.contains('a', 'Carrito (2)').should('exist')
+    verCarrito(2)
     cy.get('.resumen').should('contain', `${harina.nombre} × 2`)
     cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
 
@@ -123,7 +124,7 @@ describe('Checkout', () => {
 
     cy.get('[role="alert"]').should('have.text', `No alcanza el stock de ${harina.nombre}.`)
     cy.location('pathname').should('eq', '/pago')
-    cy.contains('a', 'Carrito (2)').should('exist')
+    verCarrito(2)
     cy.get('.resumen').should('contain', `${harina.nombre} × 2`)
     cy.get('.resumen-total').should('contain', pesos(harina.precio * 2))
   })
