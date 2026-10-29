@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 function mensajeDeAlta(error, data) {
@@ -14,8 +14,15 @@ function mensajeDeAlta(error, data) {
   return 'No se pudo crear la cuenta'
 }
 
+// Only in-app paths. Anything else falls back to the catalog.
+function destinoDe(desde) {
+  if (typeof desde !== 'string' || !desde.startsWith('/') || desde.startsWith('//')) return '/'
+  return desde
+}
+
 function Ingreso() {
   const navegar = useNavigate()
+  const destino = destinoDe(useLocation().state?.desde)
   const [nombre, setNombre] = useState('')
   const [correoAlta, setCorreoAlta] = useState('')
   const [contraseniaAlta, setContraseniaAlta] = useState('')
@@ -31,7 +38,7 @@ function Ingreso() {
       password: contrasenia,
     })
     setErrorIngreso(error ? 'Correo o contraseña incorrectos' : '')
-    if (!error) navegar('/')
+    if (!error) navegar(destino)
   }
 
   async function crearCuenta(e) {
@@ -43,7 +50,7 @@ function Ingreso() {
     })
     const mensaje = mensajeDeAlta(error, data)
     setErrorAlta(mensaje)
-    if (!mensaje) navegar('/')
+    if (!mensaje) navegar(destino)
   }
 
   return (
