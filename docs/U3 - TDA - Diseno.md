@@ -1,8 +1,8 @@
 # Diseño - Tienda web 'Dietética Los Mirasoles'
 
-Documento de referencia de la fase de diseño. Se apoya en los requerimientos iniciales y en el análisis. Cubre la arquitectura, las tecnologías, los módulos, el modelo de datos, el contrato del checkout y del correo, y la secuencia de confirmar un pedido.
+Documento de referencia de la fase de diseño. Se apoya en los requerimientos iniciales y en el análisis. Cubre la arquitectura, las tecnologías, los módulos, el modelo de datos, el contrato del checkout y del correo, la secuencia de confirmar un pedido, y el acceso al panel.
 
-Las pantallas siguen siendo las de la fase de análisis. No incluye mockups de alta fidelidad, ni el diseño del panel, ni los requisitos que quedaron fuera de ese corte.
+Las pantallas de la tienda siguen los wireframes de la fase de análisis. No hay mockups de alta fidelidad. El panel usa esos bocetos: el acceso, los estados y el stock están en este documento. Los requisitos que quedaron fuera de ese corte no se diseñan acá.
 
 ---
 
@@ -34,7 +34,7 @@ flowchart LR
     Fn --> Mail
 ```
 
-Principio que ordena el corte: la función de confirmar es el único lugar que cambia stock y pedidos. Si mañana el cobro deja de ser simulado, se reemplaza esa función y las pantallas siguen igual.
+El navegador no escribe pedidos ni stock. Al confirmar, lo hace `confirmar-pedido`. En el panel, el cambio de estado lo hace el trigger de Postgres. Si el cobro deja de ser simulado, se reemplaza la función y las pantallas siguen igual.
 
 ---
 
@@ -42,7 +42,7 @@ Principio que ordena el corte: la función de confirmar es el único lugar que c
 
 | Pieza | Elección | Para qué |
 | --- | --- | --- |
-| Interfaz | React | Las pantallas del catálogo, la ficha, el carrito, el checkout, la confirmación y la cuenta |
+| Interfaz | React | Las pantallas del catálogo, la ficha, el carrito, el checkout, la confirmación, la cuenta y el panel |
 | Datos y sesión | Supabase | Postgres, autenticación por correo y contraseña, API de lectura generada sobre las tablas, permisos por fila |
 | Reglas del checkout | Función de Supabase | Stock, costo de envío, alta del pedido y llamada al correo |
 | Correo | SMTP de Gmail | Comprobante real desde la cuenta de prueba. Host `smtp.gmail.com`, puerto 587, STARTTLS |
@@ -65,6 +65,7 @@ Queda afuera de esta elección: pasarela de pago, marketplace, operador logísti
 | Cuenta | Supabase Auth y `perfiles` | Registro, ingreso, cierre de sesión y rol. Sin sesión no se confirma la compra |
 | Checkout | Función `confirmar-pedido` | Datos de contacto, retiro o envío, costo, cobro simulado, alta del pedido |
 | Correo | La misma función, hacia SMTP | Comprobante si el pedido quedó grabado. Si Gmail falla, el pedido no se borra |
+| Panel | React, con el rol en el servidor | Productos, pedidos y cambio de estado. El administrador no recorre la tienda |
 | Datos | Postgres | Tablas de la sección 4 y permisos por fila |
 
 El mismo login sirve para los dos accesos. El rol de `perfiles` decide el destino. El cliente entra a la tienda. El administrador entra al panel (`/admin/pedidos` y `/admin/productos`) y no ve el catálogo, el carrito ni el checkout: si abre una ruta de la tienda, vuelve a Pedidos. Las pantallas del panel siguen los wireframes de la fase de análisis.

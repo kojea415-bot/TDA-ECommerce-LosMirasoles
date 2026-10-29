@@ -1,6 +1,6 @@
 # Testing de la tienda
 
-Pruebas de extremo a extremo con Cypress sobre las pantallas del cliente. El panel de administrador (HU-09 a HU-12) queda fuera de este alcance.
+Pruebas de extremo a extremo con Cypress sobre las pantallas del cliente. El panel no entra en estos specs: se recorrió a mano y el resultado está en el informe de entrega.
 
 ## Cómo correrlas
 
@@ -49,7 +49,8 @@ Resultado de la corrida del 29/10/2026: los 11 tests pasan, incluida la prueba d
 | Comprobante por SMTP (HU-13) | Es una integración entre el servidor y Gmail. |
 | Contraseñas, hash y reglas de acceso por fila (RNF-04) | Las garantizan Supabase Auth y las políticas RLS. |
 | Tiempos de respuesta en 4G (RNF-02) | Cypress en local no mide una red real. Corresponde Lighthouse sobre el sitio desplegado. |
-| Panel de administrador (HU-09 a HU-12) | Fuera del alcance de este corte. |
+| Búsqueda por nombre (RF-05) | No hay spec. En la tienda filtra el nombre ya cargado y no ordena por relevancia. |
+| Panel de administrador (HU-09 a HU-12) | Cypress no lo recorre. La prueba manual está en el informe de entrega. |
 
 ## Cómo se armó
 
