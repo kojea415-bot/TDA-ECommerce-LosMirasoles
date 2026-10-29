@@ -24,11 +24,25 @@ Hacen falta `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. En este repo ya est�
 
 ## Qué hay hoy
 
-- La documentación de requerimientos, análisis y diseño, en `docs/`.
-- El esquema de Supabase de abajo, más la cuenta de administrador y la función `confirmar-pedido`.
-- En la app: catálogo, ficha, carrito, ingreso, checkout y panel de administrador. Las pantallas siguen los wireframes y se acomodan en una columna cuando el ancho es chico.
-- Confirmar el pedido llama a `confirmar-pedido`. Un cobro aprobado o pendiente graba el pedido y manda el comprobante al correo del checkout. Uno rechazado no graba nada, no manda correo y deja el carrito. Si el SMTP falla, el pedido queda igual y `mail_ok` queda en falso.
-- El panel guarda el alta, la edición, la publicación, el precio y el stock. También cambia el estado del pedido: al entrar en preparación, listo, despachado o entregado descuenta el stock una sola vez, y al salir lo devuelve. Sin sesión, esa ruta vuelve al ingreso. Un cliente autenticado ve el aviso y no entra.
+La tienda recorre el circuito de compra y el panel.
+
+- El catálogo es público: búsqueda, filtros de aptitud y ficha. Si el producto ya está en el carrito, el catálogo y la ficha muestran el mismo − / cantidad / +.
+- El carrito vive en memoria. Sin sesión, "Seguir comprando" lleva al ingreso y después vuelve al catálogo. "Ir a pagar" aparece con sesión y con ítems.
+- El checkout tiene dos pasos: retiro o envío, y cobro simulado (aprobado, rechazado o pendiente). Un código postal que no está en la tabla no frena el envío; el costo queda en cero.
+- Confirmar llama a `confirmar-pedido`. Aprobado o pendiente graba el pedido y manda el comprobante al correo del checkout. Rechazado no graba nada, no manda correo y deja el carrito. Si el SMTP falla, el pedido queda igual y `mail_ok` queda en falso. La confirmación muestra ese pedido; recargar la pantalla no inventa un número.
+- El panel está en `/admin/pedidos` y `/admin/productos`. Entra por el mismo ingreso. Guarda alta, edición, publicación, precio y stock, y cambia el estado del pedido. Al entrar en preparación, listo para retiro, despachado o entregado descuenta el stock una sola vez; al salir, lo devuelve. Sin sesión, esa ruta vuelve al ingreso. Un cliente autenticado ve el aviso y no entra.
+- Las pantallas se acomodan en una columna. El circuito de compra entra en 360 px de ancho.
+
+## Cuentas
+
+Las dos usan `/ingreso`.
+
+| Cuenta | Correo | Contraseña |
+| --- | --- | --- |
+| Cliente de prueba | `cliente.prueba@mail.com` | `Mirasoles.prueba` |
+| Administrador | `administrador_losmirasoles@mail.com` | `Mirasoles.admin` |
+
+El cliente ve la tienda. El administrador entra al panel y no ve el catálogo, el carrito ni el checkout.
 
 ## Supabase
 
@@ -50,15 +64,13 @@ El navegador lee el catálogo. No inserta pedidos. La confirmación de correo de
 
 ## Tablero
 
-[Tablero de TDA-LosMirasoles](https://alumnos-team-dx2olafw.atlassian.net/jira/software/projects/TSK/boards/2), sprint activo.
+[Tablero de TDA-LosMirasoles](https://alumnos-team-dx2olafw.atlassian.net/jira/software/projects/TSK/boards/2).
 
-El corte de prioridad alta está cubierto en la app: catálogo, carrito, checkout con comprobante y panel.
+Los tickets de prioridad alta están en Listo: catálogo, carrito, checkout con comprobante, panel y el circuito en 360 px.
 
-La prioridad media y baja del análisis no tiene ticket. Si el corte se amplía, el orden es compra como invitado, carrito que sobrevive al cierre, venta por gramaje y zonas editables.
+## Entrega
 
-## Qué falta en la app
-
-Nada del corte de prioridad alta. Lo que sigue está en la prioridad media y baja del análisis.
+Los dos archivos que pide la guía de la cátedra están en `entrega/`: `EquipoOjea_Informe.pdf` y `EquipoOjea_Codigo.txt`. El equipo es Kevin Ojea y Juan Garcia. No hay número de equipo.
 
 ## Documentación
 

@@ -37,7 +37,7 @@ Los tests usan un viewport de 360 x 740 (RNF-01, celular).
 | `ingreso.cy.js` | Alta exitosa: navega al inicio | HU-05 |
 | `app.cy.js` | La app abre y muestra el título (prueba de humo) | — |
 
-Resultado de la última corrida: los 11 tests pasan, incluida la prueba de humo.
+Resultado de la corrida del 29/10/2026: los 11 tests pasan, incluida la prueba de humo (Node 24.13.1, Cypress 16.2.0). Esa corrida no cubre el panel ni el correo. Esos recorridos están como prueba manual en el informe de entrega.
 
 ## Qué no se prueba y por qué
 
