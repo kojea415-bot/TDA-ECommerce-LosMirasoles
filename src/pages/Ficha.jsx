@@ -4,6 +4,7 @@ import { supabase, urlImagenProducto } from '../lib/supabase'
 import { etiquetasDe, pesos } from '../lib/presentacion'
 import { useCart } from '../context/CartContext'
 import MarcoImagen from '../components/MarcoImagen'
+import Icono from '../components/Icono'
 
 function Ficha() {
   const { id } = useParams()
@@ -58,7 +59,7 @@ function Ficha() {
           src={urlImagenProducto(producto.imagen_path)}
           alt={producto.nombre}
         />
-        <div>
+        <div className="ficha-info">
           <h1 className="titulo">{producto.nombre}</h1>
           {etiquetas.length > 0 && (
             <p className="chips">
@@ -83,7 +84,10 @@ function Ficha() {
               <p className="caja">{producto.info_nutricional}</p>
             </>
           )}
-          <p className="disponible">{sinStock ? 'No disponible' : 'Disponible'}</p>
+          <p className={sinStock ? 'disponible disponible-no' : 'disponible'}>
+            <Icono nombre={sinStock ? 'menos' : 'check'} />
+            {sinStock ? 'No disponible' : 'Disponible'}
+          </p>
           {!sinStock && (
             <button
               type="button"
@@ -91,6 +95,7 @@ function Ficha() {
               onClick={() => agregarProducto(producto)}
               disabled={enCarrito >= producto.stock}
             >
+              <Icono nombre="carrito" />
               Agregar al carrito
             </button>
           )}

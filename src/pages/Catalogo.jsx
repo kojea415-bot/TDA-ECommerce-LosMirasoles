@@ -4,6 +4,7 @@ import { supabase, urlImagenProducto } from '../lib/supabase'
 import { etiquetasDe, pesos } from '../lib/presentacion'
 import { useCart } from '../context/CartContext'
 import MarcoImagen from '../components/MarcoImagen'
+import Icono from '../components/Icono'
 
 // Pasa a minúsculas y saca espacios y tildes, para que "organica" encuentre "Orgánica"
 function normalizar(texto) {
@@ -108,14 +109,17 @@ function Catalogo() {
             </button>
           ))}
         </div>
-        <input
-          className="campo campo-buscar"
-          type="search"
-          placeholder="Buscar producto"
-          aria-label="Buscar producto"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+        <label className="buscar">
+          <Icono nombre="buscar" />
+          <input
+            className="campo campo-buscar"
+            type="search"
+            placeholder="Buscar producto"
+            aria-label="Buscar producto"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </label>
       </div>
 
       <div className="filtros">
@@ -158,10 +162,7 @@ function Catalogo() {
               )}
               <p className="precio">{pesos(producto.precio)}</p>
               {sinStock ? (
-                <>
-                  <span className="chip chip-activo">Sin stock</span>
-                  <p className="nota">No disponible</p>
-                </>
+                <span className="chip chip-aviso">Sin stock</span>
               ) : (
                 <button
                   type="button"
@@ -169,6 +170,7 @@ function Catalogo() {
                   onClick={() => agregarProducto(producto)}
                   disabled={cantidadEnCarrito(producto.id) >= producto.stock}
                 >
+                  <Icono nombre="mas" />
                   Agregar
                 </button>
               )}

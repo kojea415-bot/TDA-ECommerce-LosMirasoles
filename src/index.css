@@ -1,21 +1,24 @@
 :root {
-  --ink: #3a3a3a;
-  --muted: #6b6b6b;
-  --line: #c8c8c8;
-  --soft: #e4e4e4;
-  --strong: #d0d0d0;
-  --chip: #dcdcdc;
-  --fill: #f3f3f3;
-  --image: #e9e9e9;
-  --field: #b0b0b0;
-  --edge: #9a9a9a;
+  --ink: #163028;
+  --muted: #5d7268;
+  --line: #d3e4d8;
+  --soft: #e7f3ec;
+  --strong: #1f7a45;
+  --strong-hover: #186338;
+  --chip: #e3f3e8;
+  --fill: #f4faf6;
+  --image: #eef5f0;
+  --field: #b7cdc2;
+  --edge: #8aab96;
+  --page: #f3f8f5;
+  --white: #fff;
 }
 
 body {
   margin: 0;
   color: var(--ink);
-  background: #fff;
-  font-family: sans-serif;
+  background: var(--page);
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
 }
 
 button,
@@ -39,20 +42,20 @@ a {
   min-height: 56px;
   padding: 10px 28px;
   border-bottom: 1px solid var(--line);
+  background: var(--white);
   box-sizing: border-box;
-}
-
-.admin-bar {
-  background: #f7f7f7;
 }
 
 .admin-bar h1,
 .header-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 18px;
   font-weight: 700;
   line-height: 1;
-  color: inherit;
+  color: var(--strong);
   text-decoration: none;
 }
 
@@ -71,29 +74,60 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   height: 32px;
   min-height: 32px;
   padding: 0 14px;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  background: var(--soft);
-  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
   font-size: 13px;
   line-height: 1;
   text-decoration: none;
   cursor: pointer;
   box-sizing: border-box;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.header-carrito,
+.header-nav a:hover,
+.header-nav button:hover,
+.admin-bar a:hover,
+.admin-bar button:hover {
+  background: var(--soft);
+  border-color: var(--edge);
+}
+
+.header-nav a.header-carrito,
 .admin-bar .boton {
   background: var(--strong);
+  border-color: var(--strong);
+  color: var(--white);
+}
+
+.header-nav a.header-carrito:hover,
+.admin-bar .boton:hover {
+  background: var(--strong-hover);
+  border-color: var(--strong-hover);
+}
+
+.cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--strong);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .pagina {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 8px 28px 48px;
+  padding: 24px 28px 56px;
   box-sizing: border-box;
 }
 
@@ -104,9 +138,18 @@ a {
   font-size: 13px;
 }
 
+.etiqueta {
+  display: block;
+  margin: 0;
+}
+
 .ceja {
+  margin: 16px 0 8px;
+  color: var(--strong);
   font-size: 12px;
-  margin: 8px 0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .titulo {
@@ -129,11 +172,31 @@ a {
   height: 36px;
   box-sizing: border-box;
   border: 1px solid var(--field);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: 0 10px;
-  background: #fff;
+  background: var(--white);
   font-size: 14px;
   line-height: 34px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.campo:focus {
+  outline: none;
+  border-color: var(--strong);
+  box-shadow: 0 0 0 3px rgba(31, 122, 69, 0.16);
+}
+
+.campo-invalido {
+  border-color: var(--ink);
+}
+
+.tabla-estado {
+  display: grid;
+  gap: 4px;
+}
+
+.tabla-estado .nota {
+  margin: 0;
 }
 
 .boton,
@@ -141,17 +204,38 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   min-height: 40px;
   padding: 8px 16px;
-  border: 1px solid var(--edge);
-  border-radius: 4px;
+  border: 1px solid var(--strong);
+  border-radius: 8px;
   background: var(--strong);
+  color: var(--white);
   text-decoration: none;
   cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--strong-hover);
+  border-color: var(--strong-hover);
+  box-shadow: 0 4px 12px rgba(22, 48, 40, 0.12);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .boton-suave {
+  background: var(--white);
+  color: var(--strong);
+  border-color: var(--edge);
+}
+
+.boton-suave:hover:not(:disabled) {
   background: var(--soft);
+  border-color: var(--strong);
+  box-shadow: none;
 }
 
 .boton:disabled {
@@ -179,14 +263,23 @@ a {
   align-self: flex-start;
   border: 1px solid var(--edge);
   border-radius: 16px;
-  background: #fff;
+  background: var(--white);
   padding: 6px 14px;
   cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
 .chip[aria-pressed='true'],
 .chip-activo {
-  background: var(--chip);
+  background: var(--strong);
+  border-color: var(--strong);
+  color: var(--white);
+}
+
+.chip-aviso {
+  background: var(--white);
+  color: var(--muted);
+  cursor: default;
 }
 
 .chip-fijo {
@@ -225,16 +318,57 @@ a {
   margin: 0;
 }
 
+.buscar {
+  position: relative;
+  display: block;
+}
+
+.buscar .icono {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  color: var(--muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .campo-buscar {
   width: 100%;
   height: 32px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 14px 0 34px;
   border-radius: 16px;
   font-size: 13px;
   line-height: 30px;
   -webkit-appearance: none;
   appearance: none;
+}
+
+.sello {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--chip);
+  color: var(--strong);
+  animation: aparecer 280ms ease;
+}
+
+.icono {
+  display: block;
+  flex: none;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .campo-buscar::placeholder {
@@ -248,16 +382,29 @@ a {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .tarjeta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 12px;
+  background: var(--white);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.tarjeta:hover {
+  border-color: #b7d4c2;
+  box-shadow: 0 8px 20px rgba(22, 48, 40, 0.08);
+}
+
+.tarjeta .boton,
+.tarjeta .chip-aviso {
+  margin-top: auto;
+  align-self: flex-start;
 }
 
 .tarjeta-nombre {
@@ -271,6 +418,7 @@ a {
 
 .precio {
   margin: 0;
+  color: var(--strong);
   font-size: 18px;
   font-weight: 700;
 }
@@ -285,14 +433,15 @@ a {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
+  border-radius: 8px;
   background: var(--image);
   color: var(--muted);
 }
 
 .marco-imagen-vacia {
   background:
-    linear-gradient(to top right, transparent calc(50% - 0.5px), #bdbdbd, transparent calc(50% + 0.5px)),
-    linear-gradient(to top left, transparent calc(50% - 0.5px), #bdbdbd, transparent calc(50% + 0.5px)),
+    linear-gradient(to top right, transparent calc(50% - 0.5px), #b7cdc2, transparent calc(50% + 0.5px)),
+    linear-gradient(to top left, transparent calc(50% - 0.5px), #b7cdc2, transparent calc(50% + 0.5px)),
     var(--image);
 }
 
@@ -319,6 +468,16 @@ a {
   align-items: start;
 }
 
+.ficha-info {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.ficha-info > * {
+  margin: 0;
+}
+
 .ficha-precio {
   display: flex;
   flex-wrap: wrap;
@@ -335,7 +494,16 @@ a {
 }
 
 .disponible {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--strong);
   font-weight: 700;
+}
+
+.disponible-no {
+  color: var(--muted);
 }
 
 .carrito-tabla {
@@ -360,7 +528,7 @@ a {
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
   align-items: center;
-  padding: 12px 0;
+  padding: 18px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -379,15 +547,20 @@ a {
 .carrito-cierre {
   display: grid;
   justify-items: end;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.carrito-aviso {
+  margin: 0;
+  text-align: right;
 }
 
 .carrito-acciones {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 16px;
 }
 
 .ingreso-paneles,
@@ -406,14 +579,34 @@ a {
 }
 
 .panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
+  background: var(--white);
   padding: 28px;
+  box-shadow: 0 1px 2px rgba(22, 48, 40, 0.04);
+}
+
+.panel > .titulo,
+.panel > .nota,
+.formulario > .nota,
+.formulario > .etiqueta {
+  margin: 0;
 }
 
 .formulario {
   display: grid;
+  gap: 18px;
+}
+
+.form-grid > div,
+.dos > div,
+.form-pie > div:not(.filtros) {
+  display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .opcion {
@@ -427,7 +620,7 @@ a {
 .form-pie {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
   align-items: end;
 }
 
@@ -439,18 +632,22 @@ a {
 .resumen,
 .confirmacion {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--fill);
+  border-radius: 12px;
+  background: var(--white);
   padding: 24px;
+  box-shadow: 0 1px 2px rgba(22, 48, 40, 0.04);
 }
 
 .confirmacion {
   max-width: 720px;
   margin: 24px auto;
-  background: #fff;
   display: grid;
   justify-items: center;
-  gap: 8px;
+  gap: 16px;
+}
+
+.confirmacion > * {
+  margin: 0;
 }
 
 .resumen ul,
@@ -468,6 +665,8 @@ a {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+  margin: 0;
+  padding: 6px 0;
 }
 
 .resumen-total {
@@ -480,7 +679,8 @@ a {
   padding: 6px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: var(--fill);
+  background: var(--chip);
+  color: var(--strong);
 }
 
 .admin-filtros {
@@ -511,8 +711,9 @@ a {
   grid-template-columns: minmax(0, 1.4fr) 140px 80px auto;
   gap: 12px;
   align-items: center;
-  padding: 8px;
+  padding: 14px;
   border: 1px solid var(--line);
+  background: var(--white);
 }
 
 .tabla-cabeza {
@@ -606,5 +807,14 @@ a {
 
   .panel {
     padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
   }
 }

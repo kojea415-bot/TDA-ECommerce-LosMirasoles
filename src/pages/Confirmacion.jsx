@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import Icono from '../components/Icono'
 import { pesos } from '../lib/presentacion'
 
 const ESTADOS = {
@@ -15,6 +16,7 @@ function Confirmacion() {
       <main className="pagina">
         <p className="ceja">Confirmación</p>
         <article className="confirmacion">
+          <span className="sello"><Icono nombre="sobre" tamano={22} /></span>
           <h1 className="titulo titulo-centro">Todavía no hay un pedido confirmado</h1>
           <Link to="/" className="boton">Volver al catálogo</Link>
         </article>
@@ -29,6 +31,9 @@ function Confirmacion() {
     <main className="pagina">
       <p className="ceja">Confirmación</p>
       <article className="confirmacion">
+        <span className="sello">
+          <Icono nombre="check" tamano={22} />
+        </span>
         <h1 className="titulo titulo-centro">
           {confirmado ? `Pedido #${pedido.id} confirmado` : `Pedido #${pedido.id} registrado`}
         </h1>

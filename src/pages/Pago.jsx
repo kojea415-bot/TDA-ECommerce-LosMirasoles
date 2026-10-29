@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import Icono from '../components/Icono'
 import { pesos } from '../lib/presentacion'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
@@ -158,6 +159,7 @@ function Pago() {
                     checked={modalidad === 'retiro'}
                     onChange={() => setModalidad('retiro')}
                   />
+                  <Icono nombre="local" />
                   Retiro en el local · envío {pesos(0)}
                 </label>
                 <label className="opcion">
@@ -167,6 +169,7 @@ function Pago() {
                     checked={modalidad === 'envio'}
                     onChange={() => setModalidad('envio')}
                   />
+                  <Icono nombre="envio" />
                   Envío a domicilio
                 </label>
 

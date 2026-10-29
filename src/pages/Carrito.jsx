@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext'
 import { pesos } from '../lib/presentacion'
 import { urlImagenProducto } from '../lib/supabase'
 import MarcoImagen from '../components/MarcoImagen'
+import Icono from '../components/Icono'
 
 // Pantalla del carrito: lista de productos y botón para quitar cada uno
 function Carrito() {
@@ -46,17 +47,18 @@ function Carrito() {
                   </button>
                 </div>
                 <div className="cantidad">
-                  <button type="button" className="boton boton-suave" onClick={() => cambiarCantidad(item, -1)}>
-                    −
+                  <button type="button" className="boton boton-suave" aria-label={`Quitar una unidad de ${item.nombre}`} onClick={() => cambiarCantidad(item, -1)}>
+                    <Icono nombre="menos" />
                   </button>
                   <span>{item.cantidad}</span>
                   <button
                     type="button"
                     className="boton boton-suave"
+                    aria-label={`Sumar una unidad de ${item.nombre}`}
                     onClick={() => cambiarCantidad(item, 1)}
                     disabled={item.cantidad >= item.stock}
                   >
-                    +
+                    <Icono nombre="mas" />
                   </button>
                 </div>
                 <p>{pesos(item.precio * item.cantidad)}</p>
@@ -72,8 +74,17 @@ function Carrito() {
               <span className="nota">Subtotal</span>{' '}
               <strong className="precio">{pesos(subtotal)}</strong>
             </p>
+            {!usuario && (
+              <p className="nota carrito-aviso">Para seguir comprando tenés que ingresar.</p>
+            )}
             <div className="carrito-acciones">
-              <Link to="/" className="boton boton-suave">Seguir comprando</Link>
+              {usuario ? (
+                <Link to="/" className="boton boton-suave">Seguir comprando</Link>
+              ) : (
+                <Link to="/ingreso" state={{ desde: '/' }} className="boton boton-suave">
+                  Seguir comprando
+                </Link>
+              )}
               {usuario && (
                 <button type="button" className="boton" onClick={irAPagar}>
                   Ir a pagar

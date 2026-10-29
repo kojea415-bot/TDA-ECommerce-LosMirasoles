@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
+import Icono from './Icono'
 
 function Header() {
   // Total de unidades del carrito (no de productos distintos)
@@ -12,17 +13,33 @@ function Header() {
 
   return (
     <header className="header">
-      <Link to="/" className="header-marca">Dietética Los Mirasoles</Link>
+      <Link to="/" className="header-marca">
+        <Icono nombre="hoja" />
+        Dietética Los Mirasoles
+      </Link>
       <nav className="header-nav">
         {perfil?.rol === 'administrador' && (
-          <Link to="/admin/pedidos">Panel</Link>
+          <Link to="/admin/pedidos">
+            <Icono nombre="panel" />
+            Panel
+          </Link>
         )}
         {usuario ? (
-          <button type="button" onClick={cerrarSesion}>Salir</button>
+          <button type="button" onClick={cerrarSesion}>
+            <Icono nombre="salir" />
+            Salir
+          </button>
         ) : (
-          <Link to="/ingreso">Cuenta</Link>
+          <Link to="/ingreso">
+            <Icono nombre="usuario" />
+            Cuenta
+          </Link>
         )}
-        <Link to="/carrito" className="header-carrito">Carrito ({total})</Link>
+        <Link to="/carrito" className="header-carrito">
+          <Icono nombre="carrito" />
+          Carrito
+          <span className="cuenta">{total}</span>
+        </Link>
       </nav>
     </header>
   )
