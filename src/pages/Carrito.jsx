@@ -4,11 +4,11 @@ import { useCart } from '../context/CartContext'
 import { pesos } from '../lib/presentacion'
 import { urlImagenProducto } from '../lib/supabase'
 import MarcoImagen from '../components/MarcoImagen'
-import Icono from '../components/Icono'
+import ControlCantidad from '../components/ControlCantidad'
 
 // Pantalla del carrito: lista de productos y botón para quitar cada uno
 function Carrito() {
-  const { items, subtotal, quitarProducto, cambiarCantidad, vaciarCarrito } = useCart()
+  const { items, subtotal, quitarProducto, vaciarCarrito } = useCart()
   const { usuario } = useAuth()
   const navegar = useNavigate()
 
@@ -46,21 +46,7 @@ function Carrito() {
                     Quitar
                   </button>
                 </div>
-                <div className="cantidad">
-                  <button type="button" className="boton boton-suave" aria-label={`Quitar una unidad de ${item.nombre}`} onClick={() => cambiarCantidad(item, -1)}>
-                    <Icono nombre="menos" />
-                  </button>
-                  <span>{item.cantidad}</span>
-                  <button
-                    type="button"
-                    className="boton boton-suave"
-                    aria-label={`Sumar una unidad de ${item.nombre}`}
-                    onClick={() => cambiarCantidad(item, 1)}
-                    disabled={item.cantidad >= item.stock}
-                  >
-                    <Icono nombre="mas" />
-                  </button>
-                </div>
+                <ControlCantidad producto={item} cantidad={item.cantidad} />
                 <p>{pesos(item.precio * item.cantidad)}</p>
               </div>
             ))}

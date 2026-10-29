@@ -5,10 +5,11 @@ import { etiquetasDe, pesos } from '../lib/presentacion'
 import { useCart } from '../context/CartContext'
 import MarcoImagen from '../components/MarcoImagen'
 import Icono from '../components/Icono'
+import ControlCantidad from '../components/ControlCantidad'
 
 function Ficha() {
   const { id } = useParams()
-  const { items, agregarProducto } = useCart()
+  const { items } = useCart()
   const [producto, setProducto] = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -89,15 +90,12 @@ function Ficha() {
             {sinStock ? 'No disponible' : 'Disponible'}
           </p>
           {!sinStock && (
-            <button
-              type="button"
-              className="boton"
-              onClick={() => agregarProducto(producto)}
-              disabled={enCarrito >= producto.stock}
-            >
-              <Icono nombre="carrito" />
-              Agregar al carrito
-            </button>
+            <ControlCantidad
+              producto={producto}
+              cantidad={enCarrito}
+              etiqueta="Agregar al carrito"
+              icono="carrito"
+            />
           )}
         </div>
       </article>

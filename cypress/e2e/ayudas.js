@@ -139,9 +139,16 @@ export function ingresarPorUI() {
   cy.contains('button', 'Salir').should('be.visible')
 }
 
-// Agrega una unidad desde el catálogo
+// Primera unidad: "Agregar". Si ya está en el carrito, el + de la tarjeta.
 export function agregarDesdeCatalogo(nombre) {
-  cy.contains('.tarjeta', nombre).contains('button', 'Agregar').click()
+  cy.contains('.tarjeta', nombre).then(($tarjeta) => {
+    const sumar = $tarjeta.find(`button[aria-label="Sumar una unidad de ${nombre}"]`)
+    if (sumar.length) {
+      cy.wrap(sumar).click()
+    } else {
+      cy.wrap($tarjeta).contains('button', 'Agregar').click()
+    }
+  })
 }
 
 // El contador va en la insignia, no en el texto "Carrito (n)".

@@ -402,7 +402,8 @@ a {
 }
 
 .tarjeta .boton,
-.tarjeta .chip-aviso {
+.tarjeta .chip-aviso,
+.tarjeta .cantidad {
   margin-top: auto;
   align-self: flex-start;
 }

@@ -5,6 +5,7 @@ import { etiquetasDe, pesos } from '../lib/presentacion'
 import { useCart } from '../context/CartContext'
 import MarcoImagen from '../components/MarcoImagen'
 import Icono from '../components/Icono'
+import ControlCantidad from '../components/ControlCantidad'
 
 // Pasa a minúsculas y saca espacios y tildes, para que "organica" encuentre "Orgánica"
 function normalizar(texto) {
@@ -23,7 +24,7 @@ const APTITUDES = [
 
 // Pantalla de inicio: trae los productos publicados de Supabase
 function Catalogo() {
-  const { items, agregarProducto } = useCart()
+  const { items } = useCart()
   const [productos, setProductos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mensajeError, setMensajeError] = useState('')
@@ -164,15 +165,7 @@ function Catalogo() {
               {sinStock ? (
                 <span className="chip chip-aviso">Sin stock</span>
               ) : (
-                <button
-                  type="button"
-                  className="boton"
-                  onClick={() => agregarProducto(producto)}
-                  disabled={cantidadEnCarrito(producto.id) >= producto.stock}
-                >
-                  <Icono nombre="mas" />
-                  Agregar
-                </button>
+                <ControlCantidad producto={producto} cantidad={cantidadEnCarrito(producto.id)} />
               )}
             </li>
           )
