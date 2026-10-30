@@ -661,6 +661,8 @@ Proyecto final de Taller de Desarrollo de Aplicaciones.
 
 Tienda web para un comercio de San Justo, Buenos Aires. Catálogo con filtros de aptitud, carrito, checkout con cobro simulado, retiro en el local y envío en GBA Oeste.
 
+La tienda publicada está en https://tda-ecommerce-losmirasoles.onrender.com.
+
 Las tres fases están en [`docs/`](docs/). Este archivo se va completando con lo que ya funciona.
 
 ## Stack
